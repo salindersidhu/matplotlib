@@ -920,8 +920,8 @@ class LocatableAxesBase(object):
         ax2 = type(self)(self.figure, self.get_position(True), *kl, **kwargs)
         ax2.set_axes_locator(self.get_axes_locator())
         self.figure.add_axes(ax2)
-        self.set_adjustable('datalim')
-        ax2.set_adjustable('datalim')
+        self.set_adjustable('box')
+        ax2.set_adjustable('box')
         self._twinned_axes.join(self, ax2)
         return ax2
 

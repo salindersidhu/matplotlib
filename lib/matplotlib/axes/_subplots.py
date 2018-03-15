@@ -184,8 +184,8 @@ class SubplotBase(object):
         ax2 = subplot_class_factory(projection_class)(self.figure,
                                                       *kl, **kwargs)
         self.figure.add_subplot(ax2)
-        self.set_adjustable('datalim')
-        ax2.set_adjustable('datalim')
+        self.set_adjustable('box')
+        ax2.set_adjustable('box')
 
         if self._layoutbox is not None and ax2._layoutbox is not None:
             # make the layout boxes be explicitly the same

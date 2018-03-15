@@ -1547,10 +1547,27 @@ class _AxesBase(martist.Artist):
 
         figW, figH = self.get_figure().get_size_inches()
         fig_aspect = figH / figW
+
+        for ax in self._twinned_axes.get_siblings(self):
+            if not (ax is self):
+                if ax.get_aspect() == 'equal':
+                    B = 1
+                else:
+                    B = ax.get_aspect()
+
+                # set twin to the same aspect as A if it is auto
+                if B == 'auto':
+                    B = A
+                    ax.set_aspect(A)
+
+                if not (A == B):
+                    self.set_adjustable('datalim')
+                    ax.set_adjustable('datalim')
+                else:
+                    self.set_adjustable('box')
+                    ax.set_adjustable('box')
+
         if self._adjustable in ['box', 'box-forced']:
-            if self in self._twinned_axes:
-                raise RuntimeError("Adjustable 'box' is not allowed in a"
-                                   " twinned Axes.  Use 'datalim' instead.")
             if aspect_scale_mode == "log":
                 box_aspect = A * self.get_data_ratio_log()
             else:
@@ -4146,8 +4163,8 @@ class _AxesBase(martist.Artist):
         if 'sharex' in kwargs and 'sharey' in kwargs:
             raise ValueError("Twinned Axes may share only one axis.")
         ax2 = self.figure.add_axes(self.get_position(True), *kl, **kwargs)
-        self.set_adjustable('datalim')
-        ax2.set_adjustable('datalim')
+        self.set_adjustable('box')
+        ax2.set_adjustable('box')
         self._twinned_axes.join(self, ax2)
         return ax2
 
