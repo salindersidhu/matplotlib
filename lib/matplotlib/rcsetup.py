@@ -1337,7 +1337,10 @@ defaultParams = {
     # This is a buffer around the axes in inches.  This is 3pts.
     'figure.constrained_layout.h_pad': [0.04167, validate_float],
     'figure.constrained_layout.w_pad': [0.04167, validate_float],
-
+    
+    # indicate whether new figure window should be popped at the front of the GUI window-tack
+    'figure.front': [True, validate_bool],
+  
     ## Saving figure's properties
     'savefig.dpi':         ['figure', validate_dpi],  # DPI
     'savefig.facecolor':   ['w', validate_color],  # facecolor; white
