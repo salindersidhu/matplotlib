@@ -5056,6 +5056,7 @@ class Axes(_AxesBase):
                 fc = self._get_patches_for_fill.get_next_color()
                 kwargs['facecolors'] = fc
 
+
         # Handle united data, such as dates
         self._process_unit_info(xdata=x, ydata=y1, kwargs=kwargs)
         self._process_unit_info(ydata=y2)

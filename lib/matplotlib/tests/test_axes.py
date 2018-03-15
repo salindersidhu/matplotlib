@@ -5,6 +5,9 @@ from itertools import chain, product
 from distutils.version import LooseVersion
 import io
 
+import matplotlib.cbook as cbook
+import matplotlib.collections as mcoll
+
 import datetime
 
 import pytz
@@ -941,6 +944,19 @@ def test_polycollection_joinstyle():
     ax.set_xbound(0, 3)
     ax.set_ybound(0, 3)
 
+def test_normalizing_fill_between_kwargs_aliases():
+    color_aliases = mcoll._color_aliases
+    kwargs = {'color': 'None', 'ec': 'blue', 'hatch': '///', 'zorder': 1, 'alpha': 0.3}
+    expected = {'edgecolors': 'blue', 'zorder': 1, 'hatch': '///', 'facecolors': 'None', 'alpha': 0.3}
+    kwargs = cbook.normalize_kwargs(kwargs, color_aliases)
+    assert(kwargs == expected)
+
+def test_normalizing_fill_between_kwargs_alias_priority():
+    color_aliases = mcoll._color_aliases
+    kwargs = {'color': 'None', 'ec': 'blue', 'hatch': '///', 'edgecolors':'red', 'zorder': 1, 'alpha': 0.3}
+    expected = {'edgecolors': 'red', 'zorder': 1, 'hatch': '///', 'facecolors': 'None', 'alpha': 0.3}
+    kwargs = cbook.normalize_kwargs(kwargs, color_aliases)
+    assert(kwargs == expected)
 
 @pytest.mark.parametrize(
     'x, y1, y2', [
