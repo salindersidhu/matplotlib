@@ -1558,7 +1558,7 @@ class _AxesBase(martist.Artist):
                 # set twin to the same aspect as A if it is auto
                 if B == 'auto':
                     B = A
-                    ax.set_aspect(A)
+                    ax.set_aspect(self.get_aspect())
 
                 if not (A == B):
                     self.set_adjustable('datalim')

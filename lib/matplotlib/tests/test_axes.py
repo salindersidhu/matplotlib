@@ -4497,6 +4497,64 @@ def test_twin_with_aspect(twin):
     assert_array_equal(ax.bbox.extents,
                        ax_twin.bbox.extents)
 
+@pytest.mark.parametrize('twin', ('x', 'y'))
+def test_twin_default_adjustable(twin):
+    fig = plt.figure()
+    ax1 = fig.add_subplot(1,1,1)
+    ax1.set_adjustable('datalim')
+    ax2 = getattr(ax1, 'twin{}'.format(twin))()
+    assert(ax1.get_adjustable() == 'box')
+    assert(ax2.get_adjustable() == 'box')
+
+
+@pytest.mark.parametrize('twin', ('x', 'y'))
+def test_twin_adjustable_with_default_aspect(twin):
+    fig = plt.figure()
+    ax1 = fig.add_subplot(1,1,1)
+    ax2 = getattr(ax1, 'twin{}'.format(twin))()
+    ax1.apply_aspect()
+    assert(ax1.get_adjustable() == 'box')
+    assert(ax2.get_adjustable() == 'box')
+
+@pytest.mark.parametrize('twin', ('x', 'y'))
+def test_twin_adjustable_with_same_custom_aspect(twin):
+    fig = plt.figure()
+    ax1 = fig.add_subplot(1,1,1)
+    ax1.set_adjustable('datalim')
+    ax1.set_aspect(2)
+    ax2 = getattr(ax1, 'twin{}'.format(twin))()
+    ax2.set_aspect(2)
+    ax1.apply_aspect()
+    assert(ax1.get_adjustable() == 'box')
+    assert(ax2.get_adjustable() == 'box')
+
+@pytest.mark.parametrize('twin', ('x', 'y'))
+def test_twin_adjustable_with_different_aspect(twin):
+    fig = plt.figure()
+    ax1 = fig.add_subplot(1,1,1)
+    ax1.set_aspect(2)
+    ax2 = getattr(ax1, 'twin{}'.format(twin))()
+    ax2.set_aspect(3)
+    ax1.apply_aspect()
+    assert(ax1.get_adjustable() == 'datalim')
+    assert(ax2.get_adjustable() == 'datalim')
+
+
+@pytest.mark.parametrize('twin', ('x', 'y'))
+def test_twin_adjustable_with_equal_and_auto_aspect(twin):
+    fig = plt.figure()
+    ax1 = fig.add_subplot(1, 1, 1)
+    ax1.set_aspect('equal')
+    ax1.set_adjustable('datalim')
+    ax2 = getattr(ax1, 'twin{}'.format(twin))()
+    ax1.apply_aspect()
+    assert(ax1.get_adjustable() == 'box')
+    assert(ax2.get_adjustable() == 'box')
+    assert(ax1.get_aspect() == 'equal')
+    assert(ax2.get_aspect() == 'equal')
+
+
+
 
 def test_relim_visible_only():
     x1 = (0., 10.)
