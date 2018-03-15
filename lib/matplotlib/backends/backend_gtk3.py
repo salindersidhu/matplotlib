@@ -413,7 +413,10 @@ class FigureManagerGTK3(FigureManagerBase):
     def show(self):
         # show the figure window
         self.window.show()
-        self.window.present()
+        # if the rcparameter figure.front is set to True, show the new figure
+        # window at the front
+        if rcParams['figure.front']:
+            self.window.present()
 
     def full_screen_toggle(self):
         self._full_screen_flag = not self._full_screen_flag
