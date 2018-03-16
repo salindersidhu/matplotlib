@@ -674,7 +674,7 @@ class FigureManagerQT(FigureManagerBase):
         self.window.activateWindow()
         # if the rcparameter figure.front is set to True, show the new figure
         # window at the front
-        if rcParams['figure.front']:
+        if matplotlib.rcParams['figure.front']:
             self.window.raise_()
 
     def destroy(self, *args):
