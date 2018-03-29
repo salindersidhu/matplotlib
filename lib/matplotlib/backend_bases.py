@@ -2719,6 +2719,7 @@ class NavigationToolbar2(object):
         ('Subplots', 'Configure subplots', 'subplots', 'configure_subplots'),
         (None, None, None, None),
         ('Save', 'Save the figure', 'filesave', 'save_figure'),
+        ('Draw', 'Draw on the graph with the paintbrush', 'paintbrush', 'paint')
       )
 
     def __init__(self, canvas):
@@ -3148,6 +3149,10 @@ class NavigationToolbar2(object):
 
     def set_history_buttons(self):
         """Enable or disable the back/forward button."""
+
+    def paint(self):
+        """ Paint on the graph"""
+        return None
 
 
 class ToolContainerBase(object):
