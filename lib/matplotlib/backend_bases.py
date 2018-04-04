@@ -2738,7 +2738,7 @@ class NavigationToolbar2(object):
         ('Subplots', 'Configure subplots', 'subplots', 'configure_subplots'),
         (None, None, None, None),
         ('Save', 'Save the figure', 'filesave', 'save_figure'),
-        ('Print', 'Print Image', 'print', 'print_image'),
+        ('Print', 'Print Image', 'fileprint', 'print_image'),
       )
 
     def __init__(self, canvas):
@@ -2774,7 +2774,7 @@ class NavigationToolbar2(object):
         # Generate a unique timestamp (in ms) for the filename
         mill_sec = int(round(time.time() * 1000))
         # Save image to current folder
-        fname = "./" + mill_sec
+        fname = "./" + str(mill_sec)
         self.canvas.figure.savefig(six.text_type(fname))
 
         # Invoke OS default print operation on saved file
