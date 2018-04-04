@@ -2766,10 +2766,11 @@ class NavigationToolbar2(object):
         self.canvas.figure.savefig(six.text_type(fname))
 
         # Invoke OS default print operation on saved file
-        os.startfile(fname, "print")
+        #os.startfile(fname, "print")
+        os.system("lpr -P Brother-HL-2240 " + fname + '.png')
 
         # Delete file after print
-        os.remove(fname)
+        os.remove(fname + '.png')
 
     def back(self, *args):
         """move back up the view lim stack"""
