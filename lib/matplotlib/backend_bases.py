@@ -2746,6 +2746,7 @@ class NavigationToolbar2(object):
                               # of the press
         self._idPress = None
         self._idRelease = None
+        self._idMove = None
         self._active = None
         # This cursor will be set after the initial draw.
         self._lastCursor = cursors.POINTER
@@ -2755,6 +2756,7 @@ class NavigationToolbar2(object):
 
         self._ids_zoom = []
         self._zoom_mode = None
+        self.drawable = False
 
         self._button_pressed = None  # determined by the button pressed
                                      # at start
@@ -3166,9 +3168,70 @@ class NavigationToolbar2(object):
     def set_history_buttons(self):
         """Enable or disable the back/forward button."""
 
-    def paint(self):
+    def on_move(self,event):
+        if not self.drawable:
+            return
+
+        self.draw_point_paint(event)
+
+    def draw_point_paint(self, event):
+
+        if event.inaxes != self.canvas.figure.get_axes()[0]:
+            return
+
+        self.lines, = self.canvas.figure.get_axes()[0].plot([None], [None], linestyle="none", marker='.', color='black')
+        self.xs = list(self.lines.get_xdata())
+        self.ys = list(self.lines.get_ydata())
+        self.xs.append(event.xdata)
+        self.ys.append(event.ydata)
+        self.lines.set_data(self.xs, self.ys)
+        self.lines.figure.canvas.draw()
+
+
+    def press_paint(self, event):
+        self.drawable = True
+        self.draw_point_paint(event)
+
+    def release_paint(self, event):
+        self.drawable = False
+
+        self._xypress = None
+        self._button_pressed = None
+
+        self.push_current()
+        self.release(event)
+        self.draw()
+
+    def paint(self, *args):
         """ Paint on the graph"""
-        return None
+        if self._active == 'DRAW':
+            self._active = None
+        else:
+            self._active = 'DRAW'
+
+        if self._idPress is not None:
+            self._idPress = self.canvas.mpl_disconnect(self._idPress)
+            self.mode = ''
+
+        if self._idRelease is not None:
+            self._idRelease = self.canvas.mpl_disconnect(self._idRelease)
+            self.mode = ''
+
+        if self._active:
+            self._idMove = self.canvas.mpl_connect('motion_notify_event', self.on_move)
+            self._idPress = self.canvas.mpl_connect('button_press_event',
+                                                    self.press_paint)
+            self._idRelease = self.canvas.mpl_connect('button_release_event',
+                                                      self.release_paint)
+            self.mode = 'draw'
+            self.canvas.widgetlock(self)
+        else:
+            self.canvas.widgetlock.release(self)
+
+        for a in self.canvas.figure.get_axes():
+            a.set_navigate_mode(self._active)
+
+        self.set_message(self.mode)
 
 
 class ToolContainerBase(object):
