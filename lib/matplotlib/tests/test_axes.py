@@ -584,6 +584,16 @@ def test_shaped_data():
     plt.plot(xdata[:, 1], xdata[1, :], 'o')
 
 
+def test_structured_data():
+    # support for stuctured data
+    pts = np.array([(1, 1), (2, 2)], dtype=[("ones", float), ("twos", float)])
+
+    # this should not read second name as a format and raise ValueError
+    fig, ax = plt.subplots(2)
+    ax[0].plot("ones", "twos", data=pts)
+    ax[1].plot("ones", "twos", "r", data=pts)
+
+
 @image_comparison(baseline_images=['const_xy'])
 def test_const_xy():
     fig = plt.figure()
@@ -865,11 +875,8 @@ def test_inverted_limits():
 def test_nonfinite_limits():
     x = np.arange(0., np.e, 0.01)
     # silence divide by zero warning from log(0)
-    olderr = np.seterr(divide='ignore')
-    try:
+    with np.errstate(divide='ignore'):
         y = np.log(x)
-    finally:
-        np.seterr(**olderr)
     x[len(x)//2] = np.nan
     fig = plt.figure()
     ax = fig.add_subplot(111)
@@ -4533,6 +4540,18 @@ def test_text_labelsize():
     ax.tick_params(direction='out')
 
 
+@image_comparison(baseline_images=['pie_default'], extensions=['png'])
+def test_pie_default():
+    # The slices will be ordered and plotted counter-clockwise.
+    labels = 'Frogs', 'Hogs', 'Dogs', 'Logs'
+    sizes = [15, 30, 45, 10]
+    colors = ['yellowgreen', 'gold', 'lightskyblue', 'lightcoral']
+    explode = (0, 0.1, 0, 0)  # only "explode" the 2nd slice (i.e. 'Hogs')
+    fig1, ax1 = plt.subplots(figsize=(8, 6))
+    pie1 = ax1.pie(sizes, explode=explode, labels=labels, colors=colors,
+                autopct='%1.1f%%', shadow=True, startangle=90)
+
+
 @image_comparison(baseline_images=['pie_linewidth_0', 'pie_linewidth_0',
                                    'pie_linewidth_0'],
                   extensions=['png'])
@@ -4657,6 +4676,28 @@ def test_pie_rotatelabels_true():
             rotatelabels=True)
     # Set aspect ratio to be equal so that pie is drawn as a circle.
     plt.axis('equal')
+
+
+def test_pie_textprops():
+    data = [23, 34, 45]
+    labels = ["Long name 1", "Long name 2", "Long name 3"]
+
+    textprops = dict(horizontalalignment="center",
+                     verticalalignment="top",
+                     rotation=90,
+                     rotation_mode="anchor",
+                     size=12, color="red")
+
+    _, texts, autopct = plt.gca().pie(data, labels=labels, autopct='%.2f',
+                                      textprops=textprops)
+    for labels in [texts, autopct]:
+        for tx in labels:
+            assert tx.get_ha() == textprops["horizontalalignment"]
+            assert tx.get_va() == textprops["verticalalignment"]
+            assert tx.get_rotation() == textprops["rotation"]
+            assert tx.get_rotation_mode() == textprops["rotation_mode"]
+            assert tx.get_size() == textprops["size"]
+            assert tx.get_color() == textprops["color"]
 
 
 @image_comparison(baseline_images=['set_get_ticklabels'], extensions=['png'])
@@ -5127,6 +5168,23 @@ def test_remove_shared_axes_relim():
     assert_array_equal(ax_lst[0][1].get_xlim(), orig_xlim)
 
 
+def test_shared_axes_autoscale():
+    l = np.arange(-80, 90, 40)
+    t = np.random.random_sample((l.size, l.size))
+
+    ax1 = plt.subplot(211)
+    ax1.set_xlim(-1000, 1000)
+    ax1.set_ylim(-1000, 1000)
+    ax1.contour(l, l, t)
+
+    ax2 = plt.subplot(212, sharex=ax1, sharey=ax1)
+    ax2.contour(l, l, t)
+    assert not ax1.get_autoscalex_on() and not ax2.get_autoscalex_on()
+    assert not ax1.get_autoscaley_on() and not ax2.get_autoscaley_on()
+    assert ax1.get_xlim() == ax2.get_xlim() == (-1000, 1000)
+    assert ax1.get_ylim() == ax2.get_ylim() == (-1000, 1000)
+
+
 def test_adjust_numtick_aspect():
     fig, ax = plt.subplots()
     ax.yaxis.get_major_locator().set_params(nbins='auto')
@@ -5351,6 +5409,42 @@ def test_axisbelow():
         for spine in ax.spines.values():
             spine.set_visible(False)
         ax.set_axisbelow(setting)
+
+
+@image_comparison(baseline_images=['titletwiny'], style='mpl20',
+        extensions=['png'])
+def test_titletwiny():
+    # Test that title is put above xlabel if xlabel at top
+    fig, ax = plt.subplots()
+    fig.subplots_adjust(top=0.8)
+    ax2 = ax.twiny()
+    ax.set_xlabel('Xlabel')
+    ax2.set_xlabel('Xlabel2')
+    ax.set_title('Title')
+
+
+def test_titlesetpos():
+    # Test that title stays put if we set it manually
+    fig, ax = plt.subplots()
+    fig.subplots_adjust(top=0.8)
+    ax2 = ax.twiny()
+    ax.set_xlabel('Xlabel')
+    ax2.set_xlabel('Xlabel2')
+    ax.set_title('Title')
+    pos = (0.5, 1.11)
+    ax.title.set_position(pos)
+    renderer = fig.canvas.get_renderer()
+    ax._update_title_position(renderer)
+    assert ax.title.get_position() == pos
+
+
+def test_title_xticks_top():
+    # Test that title moves if xticks on top of axes.
+    fig, ax = plt.subplots()
+    ax.xaxis.set_ticks_position('top')
+    ax.set_title('xlabel top')
+    fig.canvas.draw()
+    assert ax.title.get_position()[1] > 1.04
 
 
 def test_offset_label_color():

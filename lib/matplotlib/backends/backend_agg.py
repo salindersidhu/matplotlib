@@ -486,53 +486,33 @@ class FigureCanvasAgg(FigureCanvasBase):
     def print_raw(self, filename_or_obj, *args, **kwargs):
         FigureCanvasAgg.draw(self)
         renderer = self.get_renderer()
-        original_dpi = renderer.dpi
-        renderer.dpi = self.figure.dpi
-        if isinstance(filename_or_obj, six.string_types):
-            fileobj = open(filename_or_obj, 'wb')
-            close = True
-        else:
-            fileobj = filename_or_obj
-            close = False
-        try:
-            fileobj.write(renderer._renderer.buffer_rgba())
-        finally:
-            if close:
-                fileobj.close()
-            renderer.dpi = original_dpi
+        with cbook._setattr_cm(renderer, dpi=self.figure.dpi), \
+                cbook.open_file_cm(filename_or_obj, "wb") as fh:
+            fh.write(renderer._renderer.buffer_rgba())
     print_rgba = print_raw
 
     def print_png(self, filename_or_obj, *args, **kwargs):
         FigureCanvasAgg.draw(self)
         renderer = self.get_renderer()
-        original_dpi = renderer.dpi
-        renderer.dpi = self.figure.dpi
 
-        version_str = 'matplotlib version ' + __version__ + \
-            ', http://matplotlib.org/'
+        version_str = (
+            'matplotlib version ' + __version__ + ', http://matplotlib.org/')
         metadata = OrderedDict({'Software': version_str})
         user_metadata = kwargs.pop("metadata", None)
         if user_metadata is not None:
             metadata.update(user_metadata)
 
-        try:
-            with cbook.open_file_cm(filename_or_obj, "wb") as fh:
-                _png.write_png(renderer._renderer, fh,
-                               self.figure.dpi, metadata=metadata)
-        finally:
-            renderer.dpi = original_dpi
+        with cbook._setattr_cm(renderer, dpi=self.figure.dpi), \
+                cbook.open_file_cm(filename_or_obj, "wb") as fh:
+            _png.write_png(renderer._renderer, fh,
+                            self.figure.dpi, metadata=metadata)
 
     def print_to_buffer(self):
         FigureCanvasAgg.draw(self)
         renderer = self.get_renderer()
-        original_dpi = renderer.dpi
-        renderer.dpi = self.figure.dpi
-        try:
-            result = (renderer._renderer.buffer_rgba(),
-                      (int(renderer.width), int(renderer.height)))
-        finally:
-            renderer.dpi = original_dpi
-        return result
+        with cbook._setattr_cm(renderer, dpi=self.figure.dpi):
+            return (renderer._renderer.buffer_rgba(),
+                    (int(renderer.width), int(renderer.height)))
 
     if _has_pil:
         # add JPEG support
@@ -541,11 +521,10 @@ class FigureCanvasAgg(FigureCanvasBase):
             Other Parameters
             ----------------
             quality : int
-                The image quality, on a scale from 1 (worst) to
-                95 (best). The default is 95, if not given in the
-                matplotlibrc file in the savefig.jpeg_quality parameter.
-                Values above 95 should be avoided; 100 completely
-                disables the JPEG quantization stage.
+                The image quality, on a scale from 1 (worst) to 100 (best).
+                The default is :rc:`savefig.jpeg_quality`.  Values above
+                95 should be avoided; 100 completely disables the JPEG
+                quantization stage.
 
             optimize : bool
                 If present, indicates that the encoder should
@@ -563,7 +542,7 @@ class FigureCanvasAgg(FigureCanvasBase):
             # handle any transparency
             image = Image.frombuffer('RGBA', size, buf, 'raw', 'RGBA', 0, 1)
             rgba = mcolors.to_rgba(rcParams['savefig.facecolor'])
-            color = tuple([int(x * 255.0) for x in rgba[:3]])
+            color = tuple([int(x * 255) for x in rgba[:3]])
             background = Image.new('RGB', size, color)
             background.paste(image, image)
             options = {k: kwargs[k]

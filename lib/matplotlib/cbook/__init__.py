@@ -6,11 +6,6 @@ This module is safe to import from anywhere within matplotlib;
 it imports matplotlib only at runtime.
 """
 
-from __future__ import absolute_import, division, print_function
-
-import six
-from six.moves import xrange, zip
-import bz2
 import collections
 import contextlib
 import datetime
@@ -40,6 +35,7 @@ from .deprecation import deprecated, warn_deprecated
 from .deprecation import mplDeprecation, MatplotlibDeprecationWarning
 
 
+@deprecated("3.0")
 def unicode_safe(s):
 
     if isinstance(s, bytes):
@@ -59,9 +55,9 @@ def unicode_safe(s):
             preferredencoding = None
 
         if preferredencoding is None:
-            return six.text_type(s)
+            return str(s)
         else:
-            return six.text_type(s, preferredencoding)
+            return str(s, preferredencoding)
     return s
 
 
@@ -83,18 +79,11 @@ class _BoundMethodProxy(object):
         self._destroy_callbacks = []
         try:
             try:
-                if six.PY3:
-                    self.inst = ref(cb.__self__, self._destroy)
-                else:
-                    self.inst = ref(cb.im_self, self._destroy)
+                self.inst = ref(cb.__self__, self._destroy)
             except TypeError:
                 self.inst = None
-            if six.PY3:
-                self.func = cb.__func__
-                self.klass = cb.__self__.__class__
-            else:
-                self.func = cb.im_func
-                self.klass = cb.im_class
+            self.func = cb.__func__
+            self.klass = cb.__self__.__class__
         except AttributeError:
             self.inst = None
             self.func = cb
@@ -159,12 +148,6 @@ class _BoundMethodProxy(object):
                 return self.func == other.func and self.inst() == other.inst()
         except Exception:
             return False
-
-    def __ne__(self, other):
-        """
-        Inverse of __eq__.
-        """
-        return not self.__eq__(other)
 
     def __hash__(self):
         return self._hash
@@ -269,7 +252,7 @@ class CallbackRegistry(object):
         return cid
 
     def _remove_proxy(self, proxy):
-        for signal, proxies in list(six.iteritems(self._func_cid_map)):
+        for signal, proxies in list(self._func_cid_map.items()):
             try:
                 del self.callbacks[signal][proxies[proxy]]
             except KeyError:
@@ -282,15 +265,14 @@ class CallbackRegistry(object):
     def disconnect(self, cid):
         """Disconnect the callback registered with callback id *cid*.
         """
-        for eventname, callbackd in list(six.iteritems(self.callbacks)):
+        for eventname, callbackd in list(self.callbacks.items()):
             try:
                 del callbackd[cid]
             except KeyError:
                 continue
             else:
-                for signal, functions in list(
-                        six.iteritems(self._func_cid_map)):
-                    for function, value in list(six.iteritems(functions)):
+                for signal, functions in list(self._func_cid_map.items()):
+                    for function, value in list(functions.items()):
                         if value == cid:
                             del functions[function]
                 return
@@ -303,7 +285,7 @@ class CallbackRegistry(object):
         called with ``*args`` and ``**kwargs``.
         """
         if s in self.callbacks:
-            for cid, proxy in list(six.iteritems(self.callbacks[s])):
+            for cid, proxy in list(self.callbacks[s].items()):
                 try:
                     proxy(*args, **kwargs)
                 except ReferenceError:
@@ -331,8 +313,7 @@ class silent_list(list):
     def __repr__(self):
         return '<a list of %d %s objects>' % (len(self), self.type)
 
-    def __str__(self):
-        return repr(self)
+    __str__ = __repr__
 
     def __getstate__(self):
         # store a dictionary of this SilentList's state
@@ -470,16 +451,19 @@ def to_filehandle(fname, flag='rU', return_opened=False, encoding=None):
     files is automatic, if the filename ends in .gz.  *flag* is a
     read/write flag for :func:`file`
     """
-    if hasattr(os, "PathLike") and isinstance(fname, os.PathLike):
+    if isinstance(fname, getattr(os, "PathLike", ())):
         return to_filehandle(
             os.fspath(fname),
             flag=flag, return_opened=return_opened, encoding=encoding)
-    if isinstance(fname, six.string_types):
+    if isinstance(fname, str):
         if fname.endswith('.gz'):
             # get rid of 'U' in flag for gzipped files.
             flag = flag.replace('U', '')
             fh = gzip.open(fname, flag)
         elif fname.endswith('.bz2'):
+            # python may not be complied with bz2 support,
+            # bury import until we need it
+            import bz2
             # get rid of 'U' in flag for bz2 files
             flag = flag.replace('U', '')
             fh = bz2.BZ2File(fname, flag)
@@ -509,12 +493,12 @@ def open_file_cm(path_or_file, mode="r", encoding=None):
 
 def is_scalar_or_string(val):
     """Return whether the given object is a scalar or string like."""
-    return isinstance(val, six.string_types) or not iterable(val)
+    return isinstance(val, str) or not iterable(val)
 
 
 def _string_to_bool(s):
     """Parses the string argument as a boolean"""
-    if not isinstance(s, six.string_types):
+    if not isinstance(s, str):
         return bool(s)
     warn_deprecated("2.2", "Passing one of 'on', 'true', 'off', 'false' as a "
                     "boolean is deprecated; use an actual boolean "
@@ -547,8 +531,7 @@ def get_sample_data(fname, asfileobj=True):
     path = os.path.join(root, fname)
 
     if asfileobj:
-        if (os.path.splitext(fname)[-1].lower() in
-                ('.csv', '.xrc', '.txt')):
+        if os.path.splitext(fname)[-1].lower() in ['.csv', '.xrc', '.txt']:
             mode = 'r'
         else:
             mode = 'rb'
@@ -594,14 +577,7 @@ def mkdirs(newdir, mode=0o777):
     """
     # this functionality is now in core python as of 3.2
     # LPY DROP
-    if six.PY3:
-        os.makedirs(newdir, mode=mode, exist_ok=True)
-    else:
-        try:
-            os.makedirs(newdir, mode=mode)
-        except OSError as exception:
-            if exception.errno != errno.EEXIST:
-                raise
+    os.makedirs(newdir, mode=mode, exist_ok=True)
 
 
 @deprecated('3.0')
@@ -679,6 +655,7 @@ def dedent(s):
     return result
 
 
+@deprecated("3.0")
 def listFiles(root, patterns='*', recurse=1, return_folders=0):
     """
     Recursively list files
@@ -829,34 +806,34 @@ def report_memory(i=0):  # argument may go away
     pid = os.getpid()
     if sys.platform == 'sunos5':
         try:
-            a2 = Popen(str('ps -p %d -o osz') % pid, shell=True,
+            a2 = Popen('ps -p %d -o osz' % pid, shell=True,
                        stdout=PIPE).stdout.readlines()
         except OSError:
             raise NotImplementedError(
                 "report_memory works on Sun OS only if "
                 "the 'ps' program is found")
         mem = int(a2[-1].strip())
-    elif sys.platform.startswith('linux'):
+    elif sys.platform == 'linux':
         try:
-            a2 = Popen(str('ps -p %d -o rss,sz') % pid, shell=True,
+            a2 = Popen('ps -p %d -o rss,sz' % pid, shell=True,
                        stdout=PIPE).stdout.readlines()
         except OSError:
             raise NotImplementedError(
                 "report_memory works on Linux only if "
                 "the 'ps' program is found")
         mem = int(a2[1].split()[1])
-    elif sys.platform.startswith('darwin'):
+    elif sys.platform == 'darwin':
         try:
-            a2 = Popen(str('ps -p %d -o rss,vsz') % pid, shell=True,
+            a2 = Popen('ps -p %d -o rss,vsz' % pid, shell=True,
                        stdout=PIPE).stdout.readlines()
         except OSError:
             raise NotImplementedError(
                 "report_memory works on Mac OS only if "
                 "the 'ps' program is found")
         mem = int(a2[1].split()[0])
-    elif sys.platform.startswith('win'):
+    elif sys.platform == 'win32':
         try:
-            a2 = Popen([str("tasklist"), "/nh", "/fi", "pid eq %d" % pid],
+            a2 = Popen(["tasklist", "/nh", "/fi", "pid eq %d" % pid],
                        stdout=PIPE).stdout.read()
         except OSError:
             raise NotImplementedError(
@@ -919,14 +896,14 @@ def print_cycles(objects, outstream=sys.stdout, show_progress=False):
             # next "wraps around"
             next = path[(i + 1) % len(path)]
 
-            outstream.write("   %s -- " % str(type(step)))
+            outstream.write("   %s -- " % type(step))
             if isinstance(step, dict):
-                for key, val in six.iteritems(step):
+                for key, val in step.items():
                     if val is next:
-                        outstream.write("[%s]" % repr(key))
+                        outstream.write("[{!r}]".format(key))
                         break
                     if key is next:
-                        outstream.write("[key] = %s" % repr(val))
+                        outstream.write("[key] = {!r}".format(val))
                         break
             elif isinstance(step, list):
                 outstream.write("[%d]" % step.index(next))
@@ -1072,13 +1049,13 @@ class Grouper(object):
 
         # Mark each group as we come across if by appending a token,
         # and don't yield it twice
-        for group in six.itervalues(self._mapping):
+        for group in self._mapping.values():
             if group[-1] is not token:
                 yield [x() for x in group]
                 group.append(token)
 
         # Cleanup the tokens
-        for group in six.itervalues(self._mapping):
+        for group in self._mapping.values():
             if group[-1] is token:
                 del group[-1]
 
@@ -1149,14 +1126,13 @@ def delete_masked_points(*args):
     """
     if not len(args):
         return ()
-    if (isinstance(args[0], six.string_types) or not iterable(args[0])):
+    if isinstance(args[0], str) or not iterable(args[0]):
         raise ValueError("First argument must be a sequence")
     nrecs = len(args[0])
     margs = []
     seqlist = [False] * len(args)
     for i, x in enumerate(args):
-        if (not isinstance(x, six.string_types) and iterable(x)
-                and len(x) == nrecs):
+        if not isinstance(x, str) and iterable(x) and len(x) == nrecs:
             seqlist[i] = True
             if isinstance(x, np.ma.MaskedArray):
                 if x.ndim > 1:
@@ -1313,7 +1289,7 @@ def boxplot_stats(X, whis=1.5, bootstrap=None, labels=None,
         raise ValueError("Dimensions of labels and X must be compatible")
 
     input_whis = whis
-    for ii, (x, label) in enumerate(zip(X, labels), start=0):
+    for ii, (x, label) in enumerate(zip(X, labels)):
 
         # empty dict
         stats = {}
@@ -1403,7 +1379,7 @@ def boxplot_stats(X, whis=1.5, bootstrap=None, labels=None,
 # The ls_mapper maps short codes for line style to their full name used by
 # backends; the reverse mapper is for mapping full names to short ones.
 ls_mapper = {'-': 'solid', '--': 'dashed', '-.': 'dashdot', ':': 'dotted'}
-ls_mapper_r = {v: k for k, v in six.iteritems(ls_mapper)}
+ls_mapper_r = {v: k for k, v in ls_mapper.items()}
 
 
 @deprecated('2.2')
@@ -1480,16 +1456,9 @@ def contiguous_regions(mask):
 def is_math_text(s):
     # Did we find an even number of non-escaped dollar signs?
     # If so, treat is as math text.
-    try:
-        s = six.text_type(s)
-    except UnicodeDecodeError:
-        raise ValueError(
-            "matplotlib display text must have all code points < 128 or use "
-            "Unicode strings")
-
+    s = str(s)
     dollar_count = s.count(r'$') - s.count(r'\$')
     even_dollars = (dollar_count > 0 and dollar_count % 2 == 0)
-
     return even_dollars
 
 
@@ -1833,7 +1802,7 @@ def normalize_kwargs(kw, alias_mapping=None, required=(), forbidden=(),
     ret = dict()
 
     # hit all alias mappings
-    for canonical, alias_list in six.iteritems(alias_mapping):
+    for canonical, alias_list in alias_mapping.items():
 
         # the alias lists are ordered from lowest to highest priority
         # so we know to use the last value in this list
@@ -1879,11 +1848,10 @@ def normalize_kwargs(kw, alias_mapping=None, required=(), forbidden=(),
         allowed_set = set(required) | set(allowed)
         fail_keys = [k for k in ret if k not in allowed_set]
         if fail_keys:
-            raise TypeError("kwargs contains {keys!r} which are not in "
-                            "the required {req!r} or "
-                            "allowed {allow!r} keys".format(
-                                keys=fail_keys, req=required,
-                                allow=allowed))
+            raise TypeError(
+                "kwargs contains {keys!r} which are not in the required "
+                "{req!r} or allowed {allow!r} keys".format(
+                    keys=fail_keys, req=required, allow=allowed))
 
     return ret
 
@@ -2014,7 +1982,7 @@ def _str_equal(obj, s):
     because in such cases, a naive ``obj == s`` would yield an array, which
     cannot be used in a boolean context.
     """
-    return isinstance(obj, six.string_types) and obj == s
+    return isinstance(obj, str) and obj == s
 
 
 def _str_lower_equal(obj, s):
@@ -2024,4 +1992,68 @@ def _str_lower_equal(obj, s):
     because in such cases, a naive ``obj == s`` would yield an array, which
     cannot be used in a boolean context.
     """
-    return isinstance(obj, six.string_types) and obj.lower() == s
+    return isinstance(obj, str) and obj.lower() == s
+
+
+def _define_aliases(alias_d, cls=None):
+    """Class decorator for defining property aliases.
+
+    Use as ::
+
+        @cbook._define_aliases({"property": ["alias", ...], ...})
+        class C: ...
+
+    For each property, if the corresponding ``get_property`` is defined in the
+    class so far, an alias named ``get_alias`` will be defined; the same will
+    be done for setters.  If neither the getter nor the setter exists, an
+    exception will be raised.
+
+    The alias map is stored as the ``_alias_map`` attribute on the class and
+    can be used by `~.normalize_kwargs` (which assumes that higher priority
+    aliases come last).
+    """
+    if cls is None:
+        return functools.partial(_define_aliases, alias_d)
+
+    def make_alias(name):  # Enforce a closure over *name*.
+        def method(self, *args, **kwargs):
+            return getattr(self, name)(*args, **kwargs)
+        return method
+
+    for prop, aliases in alias_d.items():
+        exists = False
+        for prefix in ["get_", "set_"]:
+            if prefix + prop in vars(cls):
+                exists = True
+                for alias in aliases:
+                    method = make_alias(prefix + prop)
+                    method.__name__ = prefix + alias
+                    method.__doc__ = "alias for `{}`".format(prefix + prop)
+                    setattr(cls, prefix + alias, method)
+        if not exists:
+            raise ValueError(
+                "Neither getter nor setter exists for {!r}".format(prop))
+
+    if hasattr(cls, "_alias_map"):
+        # Need to decide on conflict resolution policy.
+        raise NotImplementedError("Parent class already defines aliases")
+    cls._alias_map = alias_d
+    return cls
+
+
+@contextlib.contextmanager
+def _setattr_cm(obj, **kwargs):
+    """Temporarily set some attributes; restore original state at context exit.
+    """
+    sentinel = object()
+    origs = [(attr, getattr(obj, attr, sentinel)) for attr in kwargs]
+    try:
+        for attr, val in kwargs.items():
+            setattr(obj, attr, val)
+        yield
+    finally:
+        for attr, orig in origs:
+            if orig is sentinel:
+                delattr(obj, attr)
+            else:
+                setattr(obj, attr, orig)

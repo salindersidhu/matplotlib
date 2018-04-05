@@ -32,9 +32,6 @@ graphics contexts must implement to serve as a matplotlib backend
     The base class for the messaging area.
 """
 
-from __future__ import (absolute_import, division, print_function,
-                        unicode_literals)
-
 import six
 
 from contextlib import contextmanager
@@ -182,13 +179,20 @@ class _Backend(object):
         is ``None`` and we are neither in IPython's ``%pylab`` mode, nor in
         `interactive` mode.
         """
-        if cls.mainloop is None:
-            return
         managers = Gcf.get_all_fig_managers()
         if not managers:
             return
         for manager in managers:
-            manager.show()
+            try:
+                manager.show()
+            except NonGuiException:
+                warnings.warn(
+                    ('matplotlib is currently using %s, which is a ' +
+                     'non-GUI backend, so cannot show the figure.')
+                    % get_backend())
+                return
+        if cls.mainloop is None:
+            return
         if block is None:
             # Hack: Are we in IPython's pylab mode?
             from matplotlib import pyplot
@@ -2062,9 +2066,8 @@ class FigureCanvasBase(object):
         If necessary, this function will switch to a registered backend that
         supports the format.
         """
-        method_name = 'print_%s' % fmt
         # Return the current canvas if it supports the requested format.
-        if hasattr(self, method_name):
+        if hasattr(self, 'print_{}'.format(fmt)):
             return self
         # Return a default canvas for the requested format, if it exists.
         canvas_class = get_registered_canvas_class(fmt)
@@ -2117,19 +2120,10 @@ class FigureCanvasBase(object):
             tight bbox is calculated.
 
         """
-        self._is_saving = True
-        # Remove the figure manager, if any, to avoid resizing the GUI widget.
-        # Having *no* manager and a *None* manager are currently different (see
-        # Figure.show); should probably be normalized to None at some point.
-        _no_manager = object()
-        if hasattr(self, 'manager'):
-            manager = self.manager
-            del self.manager
-        else:
-            manager = _no_manager
-
         if format is None:
             # get format from filename, or from backend's default filetype
+            if isinstance(filename, getattr(os, "PathLike", ())):
+                filename = os.fspath(filename)
             if isinstance(filename, six.string_types):
                 format = os.path.splitext(filename)[1][1:]
             if format is None or format == '':
@@ -2144,104 +2138,107 @@ class FigureCanvasBase(object):
 
         if dpi is None:
             dpi = rcParams['savefig.dpi']
-
         if dpi == 'figure':
             dpi = getattr(self.figure, '_original_dpi', self.figure.dpi)
 
-        if facecolor is None:
-            facecolor = rcParams['savefig.facecolor']
-        if edgecolor is None:
-            edgecolor = rcParams['savefig.edgecolor']
+        # Remove the figure manager, if any, to avoid resizing the GUI widget.
+        # Some code (e.g. Figure.show) differentiates between having *no*
+        # manager and a *None* manager, which should be fixed at some point,
+        # but this should be fine.
+        with cbook._setattr_cm(self, _is_saving=True, manager=None), \
+                cbook._setattr_cm(self.figure, dpi=dpi):
 
-        origDPI = self.figure.dpi
-        origfacecolor = self.figure.get_facecolor()
-        origedgecolor = self.figure.get_edgecolor()
+            if facecolor is None:
+                facecolor = rcParams['savefig.facecolor']
+            if edgecolor is None:
+                edgecolor = rcParams['savefig.edgecolor']
 
-        self.figure.dpi = dpi
-        self.figure.set_facecolor(facecolor)
-        self.figure.set_edgecolor(edgecolor)
+            origfacecolor = self.figure.get_facecolor()
+            origedgecolor = self.figure.get_edgecolor()
 
-        bbox_inches = kwargs.pop("bbox_inches", None)
-        if bbox_inches is None:
-            bbox_inches = rcParams['savefig.bbox']
+            self.figure.dpi = dpi
+            self.figure.set_facecolor(facecolor)
+            self.figure.set_edgecolor(edgecolor)
 
-        if bbox_inches:
-            # call adjust_bbox to save only the given area
-            if bbox_inches == "tight":
-                # When bbox_inches == "tight", it saves the figure twice.  The
-                # first save command (to a BytesIO) is just to estimate the
-                # bounding box of the figure.
+            bbox_inches = kwargs.pop("bbox_inches", None)
+            if bbox_inches is None:
+                bbox_inches = rcParams['savefig.bbox']
+
+            if bbox_inches:
+                # call adjust_bbox to save only the given area
+                if bbox_inches == "tight":
+                    # When bbox_inches == "tight", it saves the figure twice.
+                    # The first save command (to a BytesIO) is just to estimate
+                    # the bounding box of the figure.
+                    result = print_method(
+                        io.BytesIO(),
+                        dpi=dpi,
+                        facecolor=facecolor,
+                        edgecolor=edgecolor,
+                        orientation=orientation,
+                        dryrun=True,
+                        **kwargs)
+                    renderer = self.figure._cachedRenderer
+                    bbox_inches = self.figure.get_tightbbox(renderer)
+
+                    bbox_artists = kwargs.pop("bbox_extra_artists", None)
+                    if bbox_artists is None:
+                        bbox_artists = \
+                            self.figure.get_default_bbox_extra_artists()
+
+                    bbox_filtered = []
+                    for a in bbox_artists:
+                        bbox = a.get_window_extent(renderer)
+                        if a.get_clip_on():
+                            clip_box = a.get_clip_box()
+                            if clip_box is not None:
+                                bbox = Bbox.intersection(bbox, clip_box)
+                            clip_path = a.get_clip_path()
+                            if clip_path is not None and bbox is not None:
+                                clip_path = \
+                                    clip_path.get_fully_transformed_path()
+                                bbox = Bbox.intersection(
+                                    bbox, clip_path.get_extents())
+                        if bbox is not None and (
+                                bbox.width != 0 or bbox.height != 0):
+                            bbox_filtered.append(bbox)
+
+                    if bbox_filtered:
+                        _bbox = Bbox.union(bbox_filtered)
+                        trans = Affine2D().scale(1.0 / self.figure.dpi)
+                        bbox_extra = TransformedBbox(_bbox, trans)
+                        bbox_inches = Bbox.union([bbox_inches, bbox_extra])
+
+                    pad = kwargs.pop("pad_inches", None)
+                    if pad is None:
+                        pad = rcParams['savefig.pad_inches']
+
+                    bbox_inches = bbox_inches.padded(pad)
+
+                restore_bbox = tight_bbox.adjust_bbox(self.figure, bbox_inches,
+                                                      canvas.fixed_dpi)
+
+                _bbox_inches_restore = (bbox_inches, restore_bbox)
+            else:
+                _bbox_inches_restore = None
+
+            try:
                 result = print_method(
-                    io.BytesIO(),
+                    filename,
                     dpi=dpi,
                     facecolor=facecolor,
                     edgecolor=edgecolor,
                     orientation=orientation,
-                    dryrun=True,
+                    bbox_inches_restore=_bbox_inches_restore,
                     **kwargs)
-                renderer = self.figure._cachedRenderer
-                bbox_inches = self.figure.get_tightbbox(renderer)
+            finally:
+                if bbox_inches and restore_bbox:
+                    restore_bbox()
 
-                bbox_artists = kwargs.pop("bbox_extra_artists", None)
-                if bbox_artists is None:
-                    bbox_artists = self.figure.get_default_bbox_extra_artists()
-
-                bbox_filtered = []
-                for a in bbox_artists:
-                    bbox = a.get_window_extent(renderer)
-                    if a.get_clip_on():
-                        clip_box = a.get_clip_box()
-                        if clip_box is not None:
-                            bbox = Bbox.intersection(bbox, clip_box)
-                        clip_path = a.get_clip_path()
-                        if clip_path is not None and bbox is not None:
-                            clip_path = clip_path.get_fully_transformed_path()
-                            bbox = Bbox.intersection(bbox,
-                                                     clip_path.get_extents())
-                    if bbox is not None and (bbox.width != 0 or
-                                             bbox.height != 0):
-                        bbox_filtered.append(bbox)
-
-                if bbox_filtered:
-                    _bbox = Bbox.union(bbox_filtered)
-                    trans = Affine2D().scale(1.0 / self.figure.dpi)
-                    bbox_extra = TransformedBbox(_bbox, trans)
-                    bbox_inches = Bbox.union([bbox_inches, bbox_extra])
-
-                pad = kwargs.pop("pad_inches", None)
-                if pad is None:
-                    pad = rcParams['savefig.pad_inches']
-
-                bbox_inches = bbox_inches.padded(pad)
-
-            restore_bbox = tight_bbox.adjust_bbox(self.figure, bbox_inches,
-                                                  canvas.fixed_dpi)
-
-            _bbox_inches_restore = (bbox_inches, restore_bbox)
-        else:
-            _bbox_inches_restore = None
-
-        try:
-            result = print_method(
-                filename,
-                dpi=dpi,
-                facecolor=facecolor,
-                edgecolor=edgecolor,
-                orientation=orientation,
-                bbox_inches_restore=_bbox_inches_restore,
-                **kwargs)
-        finally:
-            if bbox_inches and restore_bbox:
-                restore_bbox()
-
-            self.figure.dpi = origDPI
-            self.figure.set_facecolor(origfacecolor)
-            self.figure.set_edgecolor(origedgecolor)
-            self.figure.set_canvas(self)
-            if manager is not _no_manager:
-                self.manager = manager
-            self._is_saving = False
-        return result
+                self.figure.set_facecolor(origfacecolor)
+                self.figure.set_edgecolor(origedgecolor)
+                self.figure.set_canvas(self)
+            return result
 
     @classmethod
     def get_default_filetype(cls):
@@ -2277,17 +2274,6 @@ class FigureCanvasBase(object):
         default_basename = default_basename.replace(' ', '_')
         default_filetype = self.get_default_filetype()
         default_filename = default_basename + '.' + default_filetype
-
-        save_dir = os.path.expanduser(rcParams['savefig.directory'])
-
-        # ensure non-existing filename in save dir
-        i = 1
-        while os.path.isfile(os.path.join(save_dir, default_filename)):
-            # attach numerical count to basename
-            default_filename = (
-                '{}-{}.{}'.format(default_basename, i, default_filetype))
-            i += 1
-
         return default_filename
 
     def switch_backends(self, FigureCanvasClass):
@@ -2347,13 +2333,7 @@ class FigureCanvasBase(object):
                 print('you pressed', event.button, event.xdata, event.ydata)
 
             cid = canvas.mpl_connect('button_press_event', on_press)
-
         """
-        if s == 'idle_event':
-            cbook.warn_deprecated(1.5,
-                "idle_event is only implemented for the wx backend, and will "
-                "be removed in matplotlib 2.1. Use the animations module "
-                "instead.")
 
         return self.callbacks.connect(s, func)
 
@@ -2438,11 +2418,6 @@ class FigureCanvasBase(object):
         """
         self._looping = False
 
-    start_event_loop_default = cbook.deprecated(
-        "2.1", name="start_event_loop_default")(start_event_loop)
-    stop_event_loop_default = cbook.deprecated(
-        "2.1", name="stop_event_loop_default")(stop_event_loop)
-
 
 def key_press_handler(event, canvas, toolbar=None):
     """
@@ -2464,7 +2439,7 @@ def key_press_handler(event, canvas, toolbar=None):
     if event.key is None:
         return
 
-    # Load key-mappings from your matplotlibrc file.
+    # Load key-mappings from rcParams.
     fullscreen_keys = rcParams['keymap.fullscreen']
     home_keys = rcParams['keymap.home']
     back_keys = rcParams['keymap.back']
@@ -2599,13 +2574,13 @@ def key_press_handler(event, canvas, toolbar=None):
         # keys in list 'all' enables all axes (default key 'a'),
         # otherwise if key is a number only enable this particular axes
         # if it was the axes, where the event was raised
-        if not (event.key in all_keys):
+        if event.key not in all_keys:
             n = int(event.key) - 1
         for i, a in enumerate(canvas.figure.get_axes()):
             # consider axes, in which the event was raised
             # FIXME: Why only this axes?
-            if event.x is not None and event.y is not None \
-                    and a.in_axes(event):
+            if (event.x is not None and event.y is not None
+                    and a.in_axes(event)):
                 if event.key in all_keys:
                     a.set_navigate(True)
                 else:
@@ -2645,6 +2620,15 @@ class FigureManagerBase(object):
             self.key_press_handler_id = self.canvas.mpl_connect(
                 'key_press_event',
                 self.key_press)
+
+        self.toolmanager = None
+        self.toolbar = None
+
+        @self.canvas.figure.add_axobserver
+        def notify_axes_change(fig):
+            # Called whenever the current axes is changed.
+            if self.toolmanager is None and self.toolbar is not None:
+                self.toolbar.update()
 
     def show(self):
         """
@@ -2862,7 +2846,9 @@ class NavigationToolbar2(object):
                     if a is not event.inaxes.patch:
                         data = a.get_cursor_data(event)
                         if data is not None:
-                            s += ' [%s]' % a.format_cursor_data(data)
+                            data_str = a.format_cursor_data(data)
+                            if data_str is not None:
+                                s = s + ' ' + data_str
 
                 if len(self.mode):
                     self.set_message('%s, %s' % (self.mode, s))

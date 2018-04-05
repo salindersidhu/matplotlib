@@ -1,5 +1,3 @@
-from __future__ import (absolute_import, division, print_function,
-                        unicode_literals)
 import six
 
 import functools
@@ -12,6 +10,7 @@ import traceback
 
 import matplotlib
 
+from matplotlib import backend_tools, cbook
 from matplotlib._pylab_helpers import Gcf
 from matplotlib.backend_bases import (
     _Backend, FigureCanvasBase, FigureManagerBase, NavigationToolbar2,
@@ -20,7 +19,6 @@ import matplotlib.backends.qt_editor.figureoptions as figureoptions
 from matplotlib.backends.qt_editor.formsubplottool import UiSubplotTool
 from matplotlib.figure import Figure
 from matplotlib.backend_managers import ToolManager
-from matplotlib import backend_tools
 
 from .qt_compat import (
     QtCore, QtGui, QtWidgets, _getSaveFileName, is_pyqt5, __version__, QT_API)
@@ -169,12 +167,9 @@ def _allow_super_init(__init__):
 
         @functools.wraps(__init__)
         def wrapper(self, **kwargs):
-            try:
-                QtWidgets.QWidget.__init__ = cooperative_qwidget_init
+            with cbook._setattr_cm(QtWidgets.QWidget,
+                                   __init__=cooperative_qwidget_init):
                 __init__(self, **kwargs)
-            finally:
-                # Restore __init__
-                QtWidgets.QWidget.__init__ = qwidget_init
 
         return wrapper
 
@@ -381,6 +376,8 @@ class FigureCanvasQT(QtWidgets.QWidget, FigureCanvasBase):
             FigureCanvasBase.key_release_event(self, key, guiEvent=event)
 
     @property
+    @cbook.deprecated("3.0", "Manually check `event.guiEvent.isAutoRepeat()` "
+                      "in the event handler.")
     def keyAutoRepeat(self):
         """
         If True, enable auto-repeat for key events.
@@ -388,6 +385,8 @@ class FigureCanvasQT(QtWidgets.QWidget, FigureCanvasBase):
         return self._keyautorepeat
 
     @keyAutoRepeat.setter
+    @cbook.deprecated("3.0", "Manually check `event.guiEvent.isAutoRepeat()` "
+                      "in the event handler.")
     def keyAutoRepeat(self, val):
         self._keyautorepeat = bool(val)
 
@@ -492,11 +491,8 @@ class FigureCanvasQT(QtWidgets.QWidget, FigureCanvasBase):
         # that uses the result of the draw() to update plot elements.
         if self._is_drawing:
             return
-        self._is_drawing = True
-        try:
+        with cbook._setattr_cm(self, _is_drawing=True):
             super().draw()
-        finally:
-            self._is_drawing = False
         self.update()
 
     def draw_idle(self):
@@ -622,11 +618,6 @@ class FigureManagerQT(FigureManagerBase):
             self.window.show()
             self.canvas.draw_idle()
 
-        def notify_axes_change(fig):
-            # This will be called whenever the current axes is changed
-            if self.toolbar is not None:
-                self.toolbar.update()
-        self.canvas.figure.add_axobserver(notify_axes_change)
         self.window.raise_()
 
     def full_screen_toggle(self):

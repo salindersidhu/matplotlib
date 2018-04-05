@@ -35,6 +35,7 @@ from collections import Iterable
 from functools import lru_cache
 import json
 import os
+from pathlib import Path
 import subprocess
 import sys
 from threading import Timer
@@ -150,12 +151,13 @@ def get_fontext_synonyms(fontext):
 
 def list_fonts(directory, extensions):
     """
-    Return a list of all fonts matching any of the extensions,
-    possibly upper-cased, found recursively under the directory.
+    Return a list of all fonts matching any of the extensions, found
+    recursively under the directory.
     """
-    pattern = ';'.join(['*.%s;*.%s' % (ext, ext.upper())
-                        for ext in extensions])
-    return cbook.listFiles(directory, pattern)
+    extensions = ["." + ext for ext in extensions]
+    return [str(path)
+            for path in filter(Path.is_file, Path(directory).glob("**/*.*"))
+            if path.suffix in extensions]
 
 
 def win32FontDirectory():
@@ -218,11 +220,7 @@ def win32InstalledFonts(directory=None, fontext='ttf'):
                     direc = os.path.abspath(direc).lower()
                     if os.path.splitext(direc)[1][1:] in fontext:
                         items.add(direc)
-                except EnvironmentError:
-                    continue
-                except WindowsError:
-                    continue
-                except MemoryError:
+                except (EnvironmentError, MemoryError, WindowsError):
                     continue
             return list(items)
         finally:
@@ -231,21 +229,13 @@ def win32InstalledFonts(directory=None, fontext='ttf'):
 
 
 def OSXInstalledFonts(directories=None, fontext='ttf'):
-    """
-    Get list of font files on OS X - ignores font suffix by default.
-    """
+    """Get list of font files on OS X."""
     if directories is None:
         directories = OSXFontDirectories
-
-    fontext = get_fontext_synonyms(fontext)
-
-    files = []
-    for path in directories:
-        if fontext is None:
-            files.extend(cbook.listFiles(path, '*'))
-        else:
-            files.extend(list_fonts(path, fontext))
-    return files
+    return [path
+            for directory in directories
+            for ext in get_fontext_synonyms(fontext)
+            for path in list_fonts(directory, ext)]
 
 
 @lru_cache()
@@ -520,17 +510,14 @@ def createFontList(fontfiles, fontext='ttf'):
             seen.add(fname)
         if fontext == 'afm':
             try:
-                fh = open(fpath, 'rb')
+                with open(fpath, 'rb') as fh:
+                    font = afm.AFM(fh)
             except EnvironmentError:
                 _log.info("Could not open font file %s", fpath)
                 continue
-            try:
-                font = afm.AFM(fh)
             except RuntimeError:
                 _log.info("Could not parse font file %s", fpath)
                 continue
-            finally:
-                fh.close()
             try:
                 prop = afmFontProperty(fpath, font)
             except KeyError:
@@ -569,7 +556,7 @@ class FontProperties(object):
         The items may include a generic font family name, either
         'serif', 'sans-serif', 'cursive', 'fantasy', or 'monospace'.
         In that case, the actual font to be used will be looked up
-        from the associated rcParam in :file:`matplotlibrc`.
+        from the associated rcParam.
 
       - style: Either 'normal', 'italic' or 'oblique'.
 
@@ -590,7 +577,7 @@ class FontProperties(object):
         absolute font size, e.g., 12
 
     The default font property for TrueType fonts (as specified in the
-    default :file:`matplotlibrc` file) is::
+    default rcParams) is::
 
       sans-serif, normal, normal, normal, normal, scalable.
 
@@ -609,9 +596,9 @@ class FontProperties(object):
     This support does not require fontconfig to be installed.  We are merely
     borrowing its pattern syntax for use here.
 
-    Note that matplotlib's internal font manager and fontconfig use a
+    Note that Matplotlib's internal font manager and fontconfig use a
     different algorithm to lookup fonts, so the results of the same pattern
-    may be different in matplotlib than in other applications that use
+    may be different in Matplotlib than in other applications that use
     fontconfig.
     """
 
@@ -673,9 +660,6 @@ class FontProperties(object):
 
     def __eq__(self, other):
         return hash(self) == hash(other)
-
-    def __ne__(self, other):
-        return hash(self) != hash(other)
 
     def __str__(self):
         return self.get_fontconfig_pattern()
@@ -909,7 +893,7 @@ def json_dump(data, filename):
         try:
             json.dump(data, fh, cls=JSONEncoder, indent=2)
         except OSError as e:
-            warnings.warn('Could not save font_manager cache ', e)
+            warnings.warn('Could not save font_manager cache {}'.format(e))
 
 
 def json_load(filename):
@@ -926,7 +910,7 @@ def _normalize_font_family(family):
     return family
 
 
-@cbook.deprecated("2.2")
+@cbook.deprecated("3.0")
 class TempCache(object):
     """
     A class to store temporary caches that are (a) not saved to disk
@@ -1267,7 +1251,7 @@ class FontManager(object):
         if best_font is None or best_score >= 10.0:
             if fallback_to_default:
                 warnings.warn(
-                    'findfont: Font family %s not found. Falling back to %s' %
+                    'findfont: Font family %s not found. Falling back to %s.' %
                     (prop.get_family(), self.defaultFamily[fontext]))
                 default_prop = prop.copy()
                 default_prop.set_family(self.defaultFamily[fontext])
@@ -1275,15 +1259,13 @@ class FontManager(object):
             else:
                 # This is a hard fail -- we can't find anything reasonable,
                 # so just return the DejuVuSans.ttf
-                warnings.warn(
-                    'findfont: Could not match %s. Returning %s' %
-                    (prop, self.defaultFont[fontext]),
-                    UserWarning)
+                warnings.warn('findfont: Could not match %s. Returning %s.' %
+                              (prop, self.defaultFont[fontext]),
+                              UserWarning)
                 result = self.defaultFont[fontext]
         else:
-            _log.debug(
-                'findfont: Matching %s to %s (%s) with score of %f' %
-                (prop, best_font.name, repr(best_font.fname), best_score))
+            _log.debug('findfont: Matching %s to %s (%r) with score of %f.',
+                       prop, best_font.name, best_font.fname, best_score)
             result = best_font.fname
 
         if not os.path.isfile(result):

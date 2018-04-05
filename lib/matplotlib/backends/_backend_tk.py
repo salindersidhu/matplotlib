@@ -1,16 +1,14 @@
-from __future__ import (absolute_import, division, print_function,
-                        unicode_literals)
-
 import six
 from six.moves import tkinter as Tk
 
+import math
 import logging
 import os.path
 import sys
 
-# Paint image to Tk photo blitter extension
-import matplotlib.backends.tkagg as tkagg
+import numpy as np
 
+from . import _tkagg
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 import matplotlib.backends.windowing as windowing
 
@@ -48,9 +46,35 @@ def raise_msg_to_str(msg):
         msg = '\n'.join(map(str, msg))
     return msg
 
+
 def error_msg_tkpaint(msg, parent=None):
     from six.moves import tkinter_messagebox as tkMessageBox
     tkMessageBox.showerror("matplotlib", msg)
+
+
+def blit(photoimage, aggimage, offsets, bbox=None):
+    """
+    Blit *aggimage* to *photoimage*.
+
+    *offsets* is a tuple describing how to fill the ``offset`` field of the
+    ``Tk_PhotoImageBlock`` struct: it should be (0, 1, 2, 3) for RGBA8888 data,
+    (2, 1, 0, 3) for little-endian ARBG32 (i.e. GBRA8888) data and (1, 2, 3, 0)
+    for big-endian ARGB32 (i.e. ARGB8888) data.
+
+    If *bbox* is passed, it defines the region that gets blitted.
+    """
+    data = np.asarray(aggimage)
+    height, width = data.shape[:2]
+    dataptr = (height, width, data.ctypes.data)
+    if bbox is not None:
+        (x1, y1), (x2, y2) = bbox.__array__()
+        bboxptr = (math.floor(x1), math.ceil(x2),
+                   math.floor(y1), math.ceil(y2))
+    else:
+        photoimage.blank()
+        bboxptr = (0, width, 0, height)
+    _tkagg.blit(
+        photoimage.tk.interpaddr(), str(photoimage), dataptr, offsets, bboxptr)
 
 
 class TimerTk(TimerBase):
@@ -336,11 +360,10 @@ class FigureCanvasTk(FigureCanvasBase):
         y = self.figure.bbox.height - event.y
         num = getattr(event, 'num', None)
 
-        if sys.platform=='darwin':
-            # 2 and 3 were reversed on the OSX platform I
-            # tested under tkagg
-            if   num==2: num=3
-            elif num==3: num=2
+        if sys.platform == 'darwin':
+            # 2 and 3 were reversed on the OSX platform I tested under tkagg.
+            if num == 2: num = 3
+            elif num == 3: num = 2
 
         FigureCanvasBase.button_press_event(self, x, y, num, dblclick=dblclick, guiEvent=event)
 
@@ -354,11 +377,10 @@ class FigureCanvasTk(FigureCanvasBase):
 
         num = getattr(event, 'num', None)
 
-        if sys.platform=='darwin':
-            # 2 and 3 were reversed on the OSX platform I
-            # tested under tkagg
-            if   num==2: num=3
-            elif num==3: num=2
+        if sys.platform == 'darwin':
+            # 2 and 3 were reversed on the OSX platform I tested under tkagg.
+            if num == 2: num = 3
+            elif num == 3: num = 2
 
         FigureCanvasBase.button_release_event(self, x, y, num, guiEvent=event)
 
@@ -387,8 +409,8 @@ class FigureCanvasTk(FigureCanvasBase):
         val = event.keysym_num
         if val in self.keyvald:
             key = self.keyvald[val]
-        elif val == 0 and sys.platform == 'darwin' and \
-                                        event.keycode in self._keycode_lookup:
+        elif (val == 0 and sys.platform == 'darwin'
+              and event.keycode in self._keycode_lookup):
             key = self._keycode_lookup[event.keycode]
         elif val < 256:
             key = chr(val)
@@ -489,14 +511,6 @@ class FigureManagerTk(FigureManagerBase):
                 self.statusbar = StatusbarTk(self.window, self.toolmanager)
 
         self._shown = False
-
-        def notify_axes_change(fig):
-            'this will be called whenever the current axes is changed'
-            if self.toolmanager is not None:
-                pass
-            elif self.toolbar is not None:
-                self.toolbar.update()
-        self.canvas.figure.add_axobserver(notify_axes_change)
 
     def _get_toolbar(self):
         if matplotlib.rcParams['toolbar'] == 'toolbar2':

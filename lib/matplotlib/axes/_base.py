@@ -1,15 +1,10 @@
-from __future__ import (absolute_import, division, print_function,
-                        unicode_literals)
-
 from collections import OrderedDict
-
-import six
-
 import itertools
-import warnings
+import logging
 import math
 from operator import attrgetter
 import types
+import warnings
 
 import numpy as np
 
@@ -38,11 +33,9 @@ from matplotlib.legend import Legend
 from matplotlib.rcsetup import cycler
 from matplotlib.rcsetup import validate_axisbelow
 
-rcParams = matplotlib.rcParams
+_log = logging.getLogger(__name__)
 
-_hold_msg = """axes.hold is deprecated.
-    See the API Changes document (http://matplotlib.org/api/api_changes.html)
-    for more details."""
+rcParams = matplotlib.rcParams
 
 
 def _process_plot_format(fmt):
@@ -59,7 +52,7 @@ def _process_plot_format(fmt):
     .. seealso::
 
         :func:`~matplotlib.Line2D.lineStyles` and
-        :func:`~matplotlib.pyplot.colors`
+        :attr:`~matplotlib.colors.cnames`
             for all possible styles and color format string.
     """
 
@@ -290,8 +283,7 @@ class _process_plot_var_args(object):
                     kw[k] = defaults[k]
 
     def _makeline(self, x, y, kw, kwargs):
-        kw = kw.copy()  # Don't modify the original kw.
-        kw.update(kwargs)
+        kw = {**kw, **kwargs}  # Don't modify the original kw.
         default_dict = self._getdefaults(None, kw)
         self._setdefaults(default_dict, kw)
         seg = mlines.Line2D(x, y, **kw)
@@ -312,7 +304,7 @@ class _process_plot_var_args(object):
         ignores = {'marker', 'markersize', 'markeredgecolor',
                    'markerfacecolor', 'markeredgewidth'}
         # Also ignore anything provided by *kwargs*.
-        for k, v in six.iteritems(kwargs):
+        for k, v in kwargs.items():
             if v is not None:
                 ignores.add(k)
 
@@ -347,7 +339,7 @@ class _process_plot_var_args(object):
 
     def _plot_args(self, tup, kwargs):
         ret = []
-        if len(tup) > 1 and isinstance(tup[-1], six.string_types):
+        if len(tup) > 1 and isinstance(tup[-1], str):
             linestyle, marker, color = _process_plot_format(tup[-1])
             tup = tup[:-1]
         elif len(tup) == 3:
@@ -396,7 +388,7 @@ class _process_plot_var_args(object):
     def _grab_next_args(self, *args, **kwargs):
         while args:
             this, args = args[:2], args[2:]
-            if args and isinstance(args[0], six.string_types):
+            if args and isinstance(args[0], str):
                 this += args[0],
                 args = args[1:]
             yield from self._plot_args(this, kwargs)
@@ -509,11 +501,6 @@ class _AxesBase(martist.Artist):
         self._axisbelow = rcParams['axes.axisbelow']
 
         self._rasterization_zorder = None
-
-        self._hold = rcParams['axes.hold']
-        if self._hold is None:
-            self._hold = True
-
         self._connected = {}  # a dict from events to (id, func)
         self.cla()
 
@@ -530,8 +517,7 @@ class _AxesBase(martist.Artist):
         if yscale:
             self.set_yscale(yscale)
 
-        if len(kwargs):
-            self.update(kwargs)
+        self.update(kwargs)
 
         if self.xaxis is not None:
             self._xcid = self.xaxis.callbacks.connect(
@@ -721,7 +707,7 @@ class _AxesBase(martist.Artist):
         labels_align = matplotlib.rcParams["xtick.alignment"]
 
         return (self.get_xaxis_transform(which='tick1') +
-                mtransforms.ScaledTranslation(0, -1 * pad_points / 72.0,
+                mtransforms.ScaledTranslation(0, -1 * pad_points / 72,
                                               self.figure.dpi_scale_trans),
                 "top", labels_align)
 
@@ -748,7 +734,7 @@ class _AxesBase(martist.Artist):
         """
         labels_align = matplotlib.rcParams["xtick.alignment"]
         return (self.get_xaxis_transform(which='tick2') +
-                mtransforms.ScaledTranslation(0, pad_points / 72.0,
+                mtransforms.ScaledTranslation(0, pad_points / 72,
                                               self.figure.dpi_scale_trans),
                 "bottom", labels_align)
 
@@ -800,7 +786,7 @@ class _AxesBase(martist.Artist):
         """
         labels_align = matplotlib.rcParams["ytick.alignment"]
         return (self.get_yaxis_transform(which='tick1') +
-                mtransforms.ScaledTranslation(-1 * pad_points / 72.0, 0,
+                mtransforms.ScaledTranslation(-1 * pad_points / 72, 0,
                                               self.figure.dpi_scale_trans),
                 labels_align, "right")
 
@@ -828,7 +814,7 @@ class _AxesBase(martist.Artist):
         labels_align = matplotlib.rcParams["ytick.alignment"]
 
         return (self.get_yaxis_transform(which='tick2') +
-                mtransforms.ScaledTranslation(pad_points / 72.0, 0,
+                mtransforms.ScaledTranslation(pad_points / 72, 0,
                                               self.figure.dpi_scale_trans),
                 labels_align, "left")
 
@@ -836,12 +822,11 @@ class _AxesBase(martist.Artist):
         self.transScale.set(
             mtransforms.blended_transform_factory(
                 self.xaxis.get_transform(), self.yaxis.get_transform()))
-        if hasattr(self, "lines"):
-            for line in self.lines:
-                try:
-                    line._transformed_path.invalidate()
-                except AttributeError:
-                    pass
+        for line in getattr(self, "lines", []):  # Not set during init.
+            try:
+                line._transformed_path.invalidate()
+            except AttributeError:
+                pass
 
     def get_position(self, original=False):
         """
@@ -997,7 +982,7 @@ class _AxesBase(martist.Artist):
         self.xaxis.cla()
         self.yaxis.cla()
 
-        for name, spine in six.iteritems(self.spines):
+        for name, spine in self.spines.items():
             spine.cla()
 
         self.ignore_existing_data_limits = True
@@ -1009,7 +994,8 @@ class _AxesBase(martist.Artist):
             self.xaxis.major = self._sharex.xaxis.major
             self.xaxis.minor = self._sharex.xaxis.minor
             x0, x1 = self._sharex.get_xlim()
-            self.set_xlim(x0, x1, emit=False, auto=None)
+            self.set_xlim(x0, x1, emit=False,
+                          auto=self._sharex.get_autoscalex_on())
             self.xaxis._scale = mscale.scale_factory(
                     self._sharex.xaxis.get_scale(), self.xaxis)
         else:
@@ -1023,7 +1009,8 @@ class _AxesBase(martist.Artist):
             self.yaxis.major = self._sharey.yaxis.major
             self.yaxis.minor = self._sharey.yaxis.minor
             y0, y1 = self._sharey.get_ylim()
-            self.set_ylim(y0, y1, emit=False, auto=None)
+            self.set_ylim(y0, y1, emit=False,
+                          auto=self._sharey.get_autoscaley_on())
             self.yaxis._scale = mscale.scale_factory(
                     self._sharey.yaxis.get_scale(), self.yaxis)
         else:
@@ -1039,8 +1026,10 @@ class _AxesBase(martist.Artist):
         if (rcParams['ytick.minor.visible']):
             self.yaxis.set_minor_locator(mticker.AutoMinorLocator())
 
-        self._autoscaleXon = True
-        self._autoscaleYon = True
+        if self._sharex is None:
+            self._autoscaleXon = True
+        if self._sharey is None:
+            self._autoscaleYon = True
         self._xmargin = rcParams['axes.xmargin']
         self._ymargin = rcParams['axes.ymargin']
         self._tight = None
@@ -1091,6 +1080,8 @@ class _AxesBase(martist.Artist):
         # refactor this out so it can be called in ax.set_title if
         # pad argument used...
         self._set_title_offset_trans(title_offset_points)
+        # determine if the title position has been set manually:
+        self._autotitlepos = None
 
         for _title in (self.title, self._left_title, self._right_title):
             self._set_artist_props(_title)
@@ -1150,7 +1141,7 @@ class _AxesBase(martist.Artist):
         or from set_title kwarg ``pad``.
         """
         self.titleOffsetTrans = mtransforms.ScaledTranslation(
-                0.0, title_offset_points / 72.0,
+                0.0, title_offset_points / 72,
                 self.figure.dpi_scale_trans)
         for _title in (self.title, self._left_title, self._right_title):
             _title.set_transform(self.transAxes + self.titleOffsetTrans)
@@ -1158,40 +1149,58 @@ class _AxesBase(martist.Artist):
 
     def set_prop_cycle(self, *args, **kwargs):
         """
-        Set the property cycle for any future plot commands on this Axes.
+        Set the property cycle of the Axes.
 
-        set_prop_cycle(arg)
-        set_prop_cycle(label, itr)
-        set_prop_cycle(label1=itr1[, label2=itr2[, ...]])
+        The property cycle controls the style properties such as color,
+        marker and linestyle of future plot commands. The style properties
+        of data already added to the Axes are not modified.
+
+        Call signatures::
+
+          set_prop_cycle(cycler)
+          set_prop_cycle(label, values)
+          set_prop_cycle(label=values[, label2=values2[, ...]])
 
         Form 1 simply sets given `Cycler` object.
 
-        Form 2 creates and sets  a `Cycler` from a label and an iterable.
+        Form 2 creates and sets a `Cycler` from a label and an iterable.
 
-        Form 3 composes and sets  a `Cycler` as an inner product of the
+        Form 3 composes and sets a `Cycler` as an inner product of the
         pairs of keyword arguments. In other words, all of the
         iterables are cycled simultaneously, as if through zip().
 
         Parameters
         ----------
-        arg : Cycler
-            Set the given Cycler.
-            Can also be `None` to reset to the cycle defined by the
+        cycler : Cycler
+            Set the given Cycler. *None* resets to the cycle defined by the
             current style.
 
         label : str
-            The property key. Must be a valid `Artist` property.
+            The property key. Must be a valid `.Artist` property.
             For example, 'color' or 'linestyle'. Aliases are allowed,
             such as 'c' for 'color' and 'lw' for 'linewidth'.
 
-        itr : iterable
+        values : iterable
             Finite-length iterable of the property values. These values
             are validated and will raise a ValueError if invalid.
 
+        Examples
+        --------
+        Setting the property cycle for a single property:
+
+        >>> ax.set_prop_cycle(color=['red', 'green', 'blue'])  # or
+        >>> ax.set_prop_cycle('color', ['red', 'green', 'blue'])
+
+        Setting the property cycle for simultaneously cycling over multiple
+        properties (e.g. red circle, green plus, blue cross):
+
+        >>> ax.set_prop_cycle(color=['red', 'green', 'blue'],
+        ...                   marker=['o', '+', 'x'])
+
         See Also
         --------
-            :func:`cycler`      Convenience function for creating your
-                                own cyclers.
+        matplotlib.rcsetup.cycler
+            Convenience function for creating your own cyclers.
 
         """
         if args and kwargs:
@@ -1203,67 +1212,6 @@ class _AxesBase(martist.Artist):
             prop_cycle = cycler(*args, **kwargs)
         self._get_lines.set_prop_cycle(prop_cycle)
         self._get_patches_for_fill.set_prop_cycle(prop_cycle)
-
-    @cbook.deprecated('1.5', alternative='`.set_prop_cycle`')
-    def set_color_cycle(self, clist):
-        """
-        Set the color cycle for any future plot commands on this Axes.
-
-        Parameters
-        ----------
-        clist
-            A list of mpl color specifiers.
-        """
-        if clist is None:
-            # Calling set_color_cycle() or set_prop_cycle() with None
-            # effectively resets the cycle, but you can't do
-            # set_prop_cycle('color', None). So we are special-casing this.
-            self.set_prop_cycle(None)
-        else:
-            self.set_prop_cycle('color', clist)
-
-    @cbook.deprecated("2.0")
-    def ishold(self):
-        """return the HOLD status of the axes
-
-        The `hold` mechanism is deprecated and will be removed in
-        v3.0.
-        """
-
-        return self._hold
-
-    @cbook.deprecated("2.0", message=_hold_msg)
-    def hold(self, b=None):
-        """
-        Set the hold state.
-
-        The ``hold`` mechanism is deprecated and will be removed in
-        v3.0.  The behavior will remain consistent with the
-        long-time default value of True.
-
-        If *hold* is *None* (default), toggle the *hold* state.  Else
-        set the *hold* state to boolean value *b*.
-
-        Examples::
-
-          # toggle hold
-          hold()
-
-          # turn hold on
-          hold(True)
-
-          # turn hold off
-          hold(False)
-
-        When hold is *True*, subsequent plot commands will be added to
-        the current axes.  When hold is *False*, the current axes and
-        figure will be cleared on the next plot command
-
-        """
-        if b is None:
-            self._hold = not self._hold
-        else:
-            self._hold = b
 
     def get_aspect(self):
         return self._aspect
@@ -1321,8 +1269,7 @@ class _AxesBase(martist.Artist):
         matplotlib.axes.Axes.set_anchor
             defining the position in case of extra space.
         """
-        if not (isinstance(aspect, six.string_types)
-                and aspect in ('equal', 'auto')):
+        if not (isinstance(aspect, str) and aspect in ('equal', 'auto')):
             aspect = float(aspect)  # raise ValueError if necessary
         if share:
             axes = set(self._shared_x_axes.get_siblings(self)
@@ -1711,7 +1658,7 @@ class _AxesBase(martist.Artist):
 
         emit = kwargs.get('emit', True)
 
-        if len(v) == 1 and isinstance(v[0], six.string_types):
+        if len(v) == 1 and isinstance(v[0], str):
             s = v[0].lower()
             if s == 'on':
                 self.set_axis_on()
@@ -2521,6 +2468,50 @@ class _AxesBase(martist.Artist):
     def _get_axis_list(self):
         return (self.xaxis, self.yaxis)
 
+    def _update_title_position(self, renderer):
+        """
+        Update the title position based on the bounding box enclosing
+        all the ticklabels and x-axis spine and xlabel...
+        """
+        _log.debug('update_title_pos')
+
+        if self._autotitlepos is not None and not self._autotitlepos:
+            _log.debug('title position was updated manually, not adjusting')
+            return
+
+        titles = (self.title, self._left_title, self._right_title)
+
+        if self._autotitlepos is None:
+            for title in titles:
+                x, y = title.get_position()
+                if not np.isclose(y, 1.0):
+                    self._autotitlepos = False
+                    _log.debug('not adjusting title pos because title was'
+                             ' already placed manually: %f', y)
+                    return
+            self._autotitlepos = True
+
+        for title in titles:
+            x, y0 = title.get_position()
+            y = 1.0
+            # need to check all our twins too...
+            axs = self._twinned_axes.get_siblings(self)
+
+            for ax in axs:
+                try:
+                    if (ax.xaxis.get_label_position() == 'top'
+                            or ax.xaxis.get_ticks_position() == 'top'):
+                        bb = ax.xaxis.get_tightbbox(renderer)
+                        top = bb.ymax
+                        # we don't need to pad because the padding is already
+                        # in __init__: titleOffsetTrans
+                        yn = self.transAxes.inverted().transform((0., top))[1]
+                        y = max(y, yn)
+                except AttributeError:
+                    pass
+
+            title.set_position((x, y))
+
     # Drawing
 
     @allow_rasterization
@@ -2534,6 +2525,7 @@ class _AxesBase(martist.Artist):
         if not self.get_visible():
             return
         renderer.open_group('axes')
+
         # prevent triggering call backs during the draw process
         self._stale = True
         locator = self.get_axes_locator()
@@ -2551,8 +2543,10 @@ class _AxesBase(martist.Artist):
         # frame in the foreground. Do this before drawing the axis
         # objects so that the spine has the opportunity to update them.
         if not (self.axison and self._frameon):
-            for spine in six.itervalues(self.spines):
+            for spine in self.spines.values():
                 artists.remove(spine)
+
+        self._update_title_position(renderer)
 
         if self.axison and not inframe:
             if self._axisbelow is True:
@@ -2582,6 +2576,7 @@ class _AxesBase(martist.Artist):
         # rasterize artists with negative zorder
         # if the minimum zorder is negative, start rasterization
         rasterization_zorder = self._rasterization_zorder
+
         if (rasterization_zorder is not None and
                 artists and artists[0].zorder < rasterization_zorder):
             renderer.start_rasterizing()
@@ -4054,7 +4049,7 @@ class _AxesBase(martist.Artist):
         children.extend(self.lines)
         children.extend(self.texts)
         children.extend(self.artists)
-        children.extend(six.itervalues(self.spines))
+        children.extend(self.spines.values())
         children.append(self.xaxis)
         children.append(self.yaxis)
         children.append(self.title)
@@ -4126,6 +4121,12 @@ class _AxesBase(martist.Artist):
         else:
             self.apply_aspect()
 
+        bb_xaxis = self.xaxis.get_tightbbox(renderer)
+        if bb_xaxis:
+            bb.append(bb_xaxis)
+
+        self._update_title_position(renderer)
+
         bb.append(self.get_window_extent(renderer))
 
         if self.title.get_visible():
@@ -4134,10 +4135,6 @@ class _AxesBase(martist.Artist):
             bb.append(self._left_title.get_window_extent(renderer))
         if self._right_title.get_visible():
             bb.append(self._right_title.get_window_extent(renderer))
-
-        bb_xaxis = self.xaxis.get_tightbbox(renderer)
-        if bb_xaxis:
-            bb.append(bb_xaxis)
 
         bb_yaxis = self.yaxis.get_tightbbox(renderer)
         if bb_yaxis:

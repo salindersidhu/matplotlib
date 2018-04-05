@@ -230,7 +230,7 @@ class RendererPS(RendererBase):
         realpath, stat_key = get_realpath_and_stat(font.fname)
         used_characters = self.used_characters.setdefault(
             stat_key, (realpath, set()))
-        used_characters[1].update([ord(x) for x in s])
+        used_characters[1].update(map(ord, s))
 
     def merge_used_characters(self, other):
         for stat_key, (realpath, charset) in six.iteritems(other):
@@ -525,11 +525,12 @@ grestore
 
         if rgbFace:
             if len(rgbFace) == 4 and rgbFace[3] == 0:
-                return
-            if rgbFace[0] == rgbFace[1] == rgbFace[2]:
-                ps_color = '%1.3f setgray' % rgbFace[0]
+                ps_color = None
             else:
-                ps_color = '%1.3f %1.3f %1.3f setrgbcolor' % rgbFace[:3]
+                if rgbFace[0] == rgbFace[1] == rgbFace[2]:
+                    ps_color = '%1.3f setgray' % rgbFace[0]
+                else:
+                    ps_color = '%1.3f %1.3f %1.3f setrgbcolor' % rgbFace[:3]
 
         # construct the generic marker command:
         ps_cmd = ['/o {', 'gsave', 'newpath', 'translate'] # don't want the translate to be global
@@ -549,7 +550,8 @@ grestore
         if rgbFace:
             if stroke:
                 ps_cmd.append('gsave')
-            ps_cmd.extend([ps_color, 'fill'])
+            if ps_color:
+                ps_cmd.extend([ps_color, 'fill'])
             if stroke:
                 ps_cmd.append('grestore')
 

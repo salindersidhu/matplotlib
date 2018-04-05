@@ -388,14 +388,6 @@ class FigureManagerGTK3(FigureManagerBase):
             self.window.show()
             self.canvas.draw_idle()
 
-        def notify_axes_change(fig):
-            'this will be called whenever the current axes is changed'
-            if self.toolmanager is not None:
-                pass
-            elif self.toolbar is not None:
-                self.toolbar.update()
-        self.canvas.figure.add_axobserver(notify_axes_change)
-
         self.canvas.grab_focus()
 
     def destroy(self, *args):
@@ -592,6 +584,7 @@ class FileChooserDialog(Gtk.FileChooserDialog):
                 ):
         super().__init__(title, parent, action, buttons)
         self.set_default_response(Gtk.ResponseType.OK)
+        self.set_do_overwrite_confirmation(True)
 
         if not path:
             path = os.getcwd()

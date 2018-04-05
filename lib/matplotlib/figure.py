@@ -11,11 +11,6 @@ contains all the plot elements.  The following classes are defined
 
 """
 
-from __future__ import (absolute_import, division, print_function,
-                        unicode_literals)
-
-import six
-
 import logging
 import warnings
 
@@ -24,6 +19,7 @@ import numpy as np
 from matplotlib import rcParams
 from matplotlib import docstring
 from matplotlib import __version__ as _mpl_version
+from matplotlib import get_backend
 
 import matplotlib.artist as martist
 from matplotlib.artist import Artist, allow_rasterization
@@ -372,10 +368,6 @@ class Figure(Artist):
         self._set_artist_props(self.patch)
         self.patch.set_aa(False)
 
-        self._hold = rcParams['axes.hold']
-        if self._hold is None:
-            self._hold = True
-
         self.canvas = None
         self._suptitle = None
 
@@ -423,7 +415,7 @@ class Figure(Artist):
 
         Parameters
         ----------
-        warm : bool
+        warn : bool
             If ``True``, issue warning when called on a non-GUI backend
 
         Notes
@@ -446,10 +438,10 @@ class Figure(Artist):
             except NonGuiException:
                 pass
         if warn:
-            import warnings
             warnings.warn(
-                "matplotlib is currently using a non-GUI backend, "
-                "so cannot show the figure")
+                ('matplotlib is currently using %s, which is a ' +
+                 'non-GUI backend, so cannot show the figure.')
+                % get_backend())
 
     def _get_axes(self):
         return self._axstack.as_list()
@@ -785,25 +777,6 @@ default: 'top'
         """
         self.canvas = canvas
 
-    @cbook.deprecated("2.0")
-    def hold(self, b=None):
-        """
-        Set the hold state.  If hold is None (default), toggle the
-        hold state.  Else set the hold state to boolean value b.
-
-        e.g.::
-
-            hold()      # toggle hold
-            hold(True)  # hold is on
-            hold(False) # hold is off
-
-        All "hold" machinery is deprecated.
-        """
-        if b is None:
-            self._hold = not self._hold
-        else:
-            self._hold = b
-
     def figimage(self, X, xo=0, yo=0, alpha=None, norm=None, cmap=None,
                  vmin=None, vmax=None, origin=None, resize=False, **kwargs):
         """
@@ -873,10 +846,6 @@ default: 'top'
             plt.show()
 
         """
-
-        if not self._hold:
-            self.clf()
-
         if resize:
             dpi = self.get_dpi()
             figsize = [x / dpi for x in (X.shape[1], X.shape[0])]
@@ -1059,7 +1028,7 @@ default: 'top'
                 ret.append(a)
             return tuple(ret)
 
-        key = fixlist(args), fixitems(six.iteritems(kwargs))
+        key = fixlist(args), fixitems(kwargs.items())
         return key
 
     def add_axes(self, *args, **kwargs):
@@ -1574,172 +1543,7 @@ default: 'top'
         Other Parameters
         ----------------
 
-        loc : int or string or pair of floats, default: 'upper right'
-            The location of the legend. Possible codes are:
-
-                ===============   =============
-                Location String   Location Code
-                ===============   =============
-                'best'            0
-                'upper right'     1
-                'upper left'      2
-                'lower left'      3
-                'lower right'     4
-                'right'           5
-                'center left'     6
-                'center right'    7
-                'lower center'    8
-                'upper center'    9
-                'center'          10
-                ===============   =============
-
-
-            Alternatively can be a 2-tuple giving ``x, y`` of the lower-left
-            corner of the legend in axes coordinates (in which case
-            ``bbox_to_anchor`` will be ignored).
-
-        bbox_to_anchor : `.BboxBase` or pair of floats
-            Specify any arbitrary location for the legend in `bbox_transform`
-            coordinates (default Axes coordinates).
-
-            For example, to put the legend's upper right hand corner in the
-            center of the axes the following keywords can be used::
-
-               loc='upper right', bbox_to_anchor=(0.5, 0.5)
-
-        ncol : integer
-            The number of columns that the legend has. Default is 1.
-
-        prop : None or :class:`matplotlib.font_manager.FontProperties` or dict
-            The font properties of the legend. If None (default), the current
-            :data:`matplotlib.rcParams` will be used.
-
-        fontsize : int or float or {'xx-small', 'x-small', 'small', 'medium', \
-'large', 'x-large', 'xx-large'}
-            Controls the font size of the legend. If the value is numeric the
-            size will be the absolute font size in points. String values are
-            relative to the current default font size. This argument is only
-            used if `prop` is not specified.
-
-        numpoints : None or int
-            The number of marker points in the legend when creating a legend
-            entry for a `.Line2D` (line).
-            Default is ``None``, which will take the value from
-            :rc:`legend.numpoints`.
-
-        scatterpoints : None or int
-            The number of marker points in the legend when creating
-            a legend entry for a `.PathCollection` (scatter plot).
-            Default is ``None``, which will take the value from
-            :rc:`legend.scatterpoints`.
-
-        scatteryoffsets : iterable of floats
-            The vertical offset (relative to the font size) for the markers
-            created for a scatter plot legend entry. 0.0 is at the base the
-            legend text, and 1.0 is at the top. To draw all markers at the
-            same height, set to ``[0.5]``. Default is ``[0.375, 0.5, 0.3125]``.
-
-        markerscale : None or int or float
-            The relative size of legend markers compared with the originally
-            drawn ones.
-            Default is ``None``, which will take the value from
-            :rc:`legend.markerscale`.
-
-        markerfirst : bool
-            If *True*, legend marker is placed to the left of the legend label.
-            If *False*, legend marker is placed to the right of the legend
-            label.
-            Default is *True*.
-
-        frameon : None or bool
-            Control whether the legend should be drawn on a patch
-            (frame).
-            Default is ``None``, which will take the value from
-            :rc:`legend.frameon`.
-
-        fancybox : None or bool
-            Control whether round edges should be enabled around the
-            :class:`~matplotlib.patches.FancyBboxPatch` which makes up the
-            legend's background.
-            Default is ``None``, which will take the value from
-            :rc:`legend.fancybox`.
-
-        shadow : None or bool
-            Control whether to draw a shadow behind the legend.
-            Default is ``None``, which will take the value from
-            :rc:`legend.shadow`.
-
-        framealpha : None or float
-            Control the alpha transparency of the legend's background.
-            Default is ``None``, which will take the value from
-            :rc:`legend.framealpha`.  If shadow is activated and
-            *framealpha* is ``None``, the default value is ignored.
-
-        facecolor : None or "inherit" or a color spec
-            Control the legend's background color.
-            Default is ``None``, which will take the value from
-            :rc:`legend.facecolor`.  If ``"inherit"``, it will take
-            :rc:`axes.facecolor`.
-
-        edgecolor : None or "inherit" or a color spec
-            Control the legend's background patch edge color.
-            Default is ``None``, which will take the value from
-            :rc:`legend.edgecolor` If ``"inherit"``, it will take
-            :rc:`axes.edgecolor`.
-
-        mode : {"expand", None}
-            If `mode` is set to ``"expand"`` the legend will be horizontally
-            expanded to fill the axes area (or `bbox_to_anchor` if defines
-            the legend's size).
-
-        bbox_transform : None or :class:`matplotlib.transforms.Transform`
-            The transform for the bounding box (`bbox_to_anchor`). For a value
-            of ``None`` (default) the Axes'
-            :data:`~matplotlib.axes.Axes.transAxes` transform will be used.
-
-        title : str or None
-            The legend's title. Default is no title (``None``).
-
-        borderpad : float or None
-            The fractional whitespace inside the legend border.
-            Measured in font-size units.
-            Default is ``None``, which will take the value from
-            :rc:`legend.borderpad`.
-
-        labelspacing : float or None
-            The vertical space between the legend entries.
-            Measured in font-size units.
-            Default is ``None``, which will take the value from
-            :rc:`legend.labelspacing`.
-
-        handlelength : float or None
-            The length of the legend handles.
-            Measured in font-size units.
-            Default is ``None``, which will take the value from
-            :rc:`legend.handlelength`.
-
-        handletextpad : float or None
-            The pad between the legend handle and text.
-            Measured in font-size units.
-            Default is ``None``, which will take the value from
-            :rc:`legend.handletextpad`.
-
-        borderaxespad : float or None
-            The pad between the axes and legend border.
-            Measured in font-size units.
-            Default is ``None``, which will take the value from
-            :rc:`legend.borderaxespad`.
-
-        columnspacing : float or None
-            The spacing between columns.
-            Measured in font-size units.
-            Default is ``None``, which will take the value from
-            :rc:`legend.columnspacing`.
-
-        handler_map : dict or None
-            The custom dictionary mapping instances or types to a legend
-            handler. This `handler_map` updates the default handler map
-            found at :func:`matplotlib.legend.Legend.get_legend_handler_map`.
+        %(_legend_kw_doc)s
 
         Returns
         -------
@@ -1979,8 +1783,7 @@ default: 'top'
 
             If *format* is *None* and *fname* is a string, the output
             format is deduced from the extension of the filename. If
-            the filename has no extension, the value of the rc parameter
-            ``savefig.format`` is used.
+            the filename has no extension, :rc:`savefig.format` is used.
 
             If *fname* is not a string, remember to specify *format* to
             ensure that the correct backend is used.
@@ -1988,19 +1791,20 @@ default: 'top'
         Other Parameters
         ----------------
 
-        dpi : [ *None* | scalar > 0 | 'figure']
-            The resolution in dots per inch.  If *None* it will default to
-            the value ``savefig.dpi`` in the matplotlibrc file. If 'figure'
-            it will set the dpi to be the value of the figure.
+        dpi : [ *None* | scalar > 0 | 'figure' ]
+            The resolution in dots per inch.  If *None*, defaults to
+            :rc:`savefig.dpi`.  If 'figure', uses the figure's dpi value.
 
         facecolor : color spec or None, optional
-            the facecolor of the figure; if None, defaults to savefig.facecolor
+            The facecolor of the figure; if *None*, defaults to
+            :rc:`savefig.facecolor`.
 
         edgecolor : color spec or None, optional
-            the edgecolor of the figure; if None, defaults to savefig.edgecolor
+            The edgecolor of the figure; if *None*, defaults to
+            :rc:`savefig.edgecolor`
 
         orientation : {'landscape', 'portrait'}
-            not supported on all backends; currently only on postscript output
+            Currently only supported by the postscript backend.
 
         papertype : str
             One of 'letter', 'legal', 'executive', 'ledger', 'a0' through
@@ -2092,7 +1896,6 @@ default: 'top'
                 cax, kw = cbar.make_axes_gridspec(ax, **kw)
             else:
                 cax, kw = cbar.make_axes(ax, **kw)
-        cax._hold = True
 
         # need to remove kws that cannot be passed to Colorbar
         NON_COLORBAR_KEYS = ['fraction', 'pad', 'shrink', 'aspect', 'anchor',
@@ -2104,18 +1907,14 @@ default: 'top'
         self.stale = True
         return cb
 
-    def subplots_adjust(self, *args, **kwargs):
+    def subplots_adjust(self, left=None, bottom=None, right=None, top=None,
+                        wspace=None, hspace=None):
         """
-        Call signature::
-
-          subplots_adjust(left=None, bottom=None, right=None, top=None,
-                          wspace=None, hspace=None)
-
         Update the :class:`SubplotParams` with *kwargs* (defaulting to rc when
         *None*) and update the subplot locations.
 
         """
-        self.subplotpars.update(*args, **kwargs)
+        self.subplotpars.update(left, bottom, right, top, wspace, hspace)
         for ax in self.axes:
             if not isinstance(ax, SubplotBase):
                 # Check if sharing a subplots axis

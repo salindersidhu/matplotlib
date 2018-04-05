@@ -229,7 +229,6 @@ Property cycle
    :nosignatures:
 
    Axes.set_prop_cycle
-   Axes.set_color_cycle
 
 
 Axis / limits
@@ -652,8 +651,6 @@ Other
    Axes.get_default_bbox_extra_artists
    Axes.get_transformed_clip_path_and_affine
    Axes.has_data
-   Axes.hold
-   Axes.ishold
 
 
 Inheritance

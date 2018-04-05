@@ -9,12 +9,7 @@ be too smart with respect to layout -- you will have to figure out how
 wide and tall you want your Axes to be to accommodate your widget.
 """
 
-from __future__ import (absolute_import, division, print_function,
-                        unicode_literals)
-
 import copy
-import six
-from six.moves import zip
 
 import numpy as np
 from matplotlib import rcParams
@@ -221,7 +216,7 @@ class Button(AxesWidget):
             return
         if event.inaxes != self.ax:
             return
-        for cid, func in six.iteritems(self.observers):
+        for cid, func in self.observers.items():
             func(event)
 
     def _motion(self, event):
@@ -438,7 +433,7 @@ class Slider(AxesWidget):
         self.val = val
         if not self.eventson:
             return
-        for cid, func in six.iteritems(self.observers):
+        for cid, func in self.observers.items():
             func(val)
 
     def on_changed(self, func):
@@ -508,22 +503,30 @@ class CheckButtons(AxesWidget):
 
     Connect to the CheckButtons with the :meth:`on_clicked` method
     """
-    def __init__(self, ax, labels, actives):
+    def __init__(self, ax, labels, actives=None):
         """
         Add check buttons to :class:`matplotlib.axes.Axes` instance *ax*
 
-        *labels*
-            A len(buttons) list of labels as strings
+        Parameters
+        ----------
+        ax : `~matplotlib.axes.Axes`
+            The parent axes for the widget.
 
-        *actives*
-            A len(buttons) list of booleans indicating whether
-             the button is active
+        labels : List[str]
+            The labels of the check buttons.
+
+        actives : List[bool], optional
+            The initial check states of the buttons. The list must have the
+            same length as *labels*. If not given, all buttons are unchecked.
         """
         AxesWidget.__init__(self, ax)
 
         ax.set_xticks([])
         ax.set_yticks([])
         ax.set_navigate(False)
+
+        if actives is None:
+            actives = [False] * len(labels)
 
         if len(labels) > 1:
             dy = 1. / (len(labels) + 1)
@@ -532,7 +535,6 @@ class CheckButtons(AxesWidget):
             dy = 0.25
             ys = [0.5]
 
-        cnt = 0
         axcolor = ax.get_facecolor()
 
         self.labels = []
@@ -541,13 +543,13 @@ class CheckButtons(AxesWidget):
 
         lineparams = {'color': 'k', 'linewidth': 1.25,
                       'transform': ax.transAxes, 'solid_capstyle': 'butt'}
-        for y, label in zip(ys, labels):
+        for y, label, active in zip(ys, labels, actives):
             t = ax.text(0.25, y, label, transform=ax.transAxes,
                         horizontalalignment='left',
                         verticalalignment='center')
 
-            w, h = dy / 2., dy / 2.
-            x, y = 0.05, y - h / 2.
+            w, h = dy / 2, dy / 2
+            x, y = 0.05, y - h / 2
 
             p = Rectangle(xy=(x, y), width=w, height=h, edgecolor='black',
                           facecolor=axcolor, transform=ax.transAxes)
@@ -555,15 +557,14 @@ class CheckButtons(AxesWidget):
             l1 = Line2D([x, x + w], [y + h, y], **lineparams)
             l2 = Line2D([x, x + w], [y, y + h], **lineparams)
 
-            l1.set_visible(actives[cnt])
-            l2.set_visible(actives[cnt])
+            l1.set_visible(active)
+            l2.set_visible(active)
             self.labels.append(t)
             self.rectangles.append(p)
             self.lines.append((l1, l2))
             ax.add_patch(p)
             ax.add_line(l1)
             ax.add_line(l2)
-            cnt += 1
 
         self.connect_event('button_press_event', self._clicked)
 
@@ -602,7 +603,7 @@ class CheckButtons(AxesWidget):
 
         if not self.eventson:
             return
-        for cid, func in six.iteritems(self.observers):
+        for cid, func in self.observers.items():
             func(self.labels[index].get_text())
 
     def get_status(self):
@@ -684,7 +685,7 @@ class TextBox(AxesWidget):
 
         self.DIST_FROM_LEFT = .05
 
-        self.params_to_disable = [key for key in rcParams if u'keymap' in key]
+        self.params_to_disable = [key for key in rcParams if 'keymap' in key]
 
         self.text = initial
         self.label = ax.text(-label_pad, 0.5, label,
@@ -759,7 +760,7 @@ class TextBox(AxesWidget):
         self.ax.figure.canvas.draw()
 
     def _notify_submit_observers(self):
-        for cid, func in six.iteritems(self.submit_observers):
+        for cid, func in self.submit_observers.items():
                 func(self.text)
 
     def _release(self, event):
@@ -818,7 +819,7 @@ class TextBox(AxesWidget):
         self._notify_submit_observers()
 
     def _notify_change_observers(self):
-        for cid, func in six.iteritems(self.change_observers):
+        for cid, func in self.change_observers.items():
             func(self.text)
 
     def begin_typing(self, x):
@@ -986,6 +987,13 @@ class RadioButtons(AxesWidget):
         cnt = 0
         axcolor = ax.get_facecolor()
 
+        # scale the radius of the circle with the spacing between each one
+        circle_radius = (dy / 2) - 0.01
+
+        # defaul to hard-coded value if the radius becomes too large
+        if(circle_radius > 0.05):
+            circle_radius = 0.05
+
         self.labels = []
         self.circles = []
         for y, label in zip(ys, labels):
@@ -999,7 +1007,7 @@ class RadioButtons(AxesWidget):
             else:
                 facecolor = axcolor
 
-            p = Circle(xy=(0.15, y), radius=0.05, edgecolor='black',
+            p = Circle(xy=(0.15, y), radius=circle_radius, edgecolor='black',
                        facecolor=facecolor, transform=ax.transAxes)
 
             self.labels.append(t)
@@ -1051,7 +1059,7 @@ class RadioButtons(AxesWidget):
 
         if not self.eventson:
             return
-        for cid, func in six.iteritems(self.observers):
+        for cid, func in self.observers.items():
             func(self.labels[index].get_text())
 
     def on_clicked(self, func):
@@ -2132,6 +2140,11 @@ class RectangleSelector(_SelectorWidget):
         if self.active_handle is None or not self.interactive:
             # Clear previous rectangle before drawing new rectangle.
             self.update()
+
+        if not self.interactive:
+            x = event.xdata
+            y = event.ydata
+            self.extents = x, x, y, y
 
         self.set_visible(self.visible)
 
