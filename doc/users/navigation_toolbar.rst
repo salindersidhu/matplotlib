@@ -15,8 +15,6 @@ the buttons at the bottom of the toolbar
 
 .. image:: ../../lib/matplotlib/mpl-data/images/forward_large.png
 
-.. image:: ../../lib/matplotlib/mpl-data/images/fileprint_large.png
-
 
 The ``Home``, ``Forward`` and ``Back`` buttons
     These are akin to a web browser's home, forward and back controls.
