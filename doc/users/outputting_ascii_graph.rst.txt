@@ -1,0 +1,21 @@
+=========================================
+Displaying graphs in terminal using ASCII
+=========================================
+
+.. currentmodule:: backend_ascii
+
+Description::
+=============
+Using this module enables the user to have a 2D function's graph-plot displayed in ASCII format in the terminal.
+
+
+Usage::
+=======  
+ To use this backend, add the module ``backend_ascii`` to the local ``PYTHONPATH`` and set the backend ``rcparameter`` to ``module://backend_ascii``
+
+Once the backend is set to backend_ascii, using the ``show()`` method will result in outputting the plot graph to the terminal using ASCII characters
+   
+
+Note::
+======
+In the current version, this backend does not support drwaing anything else but the graph. Therefore, when showing the figure it is recommended to turn off the axes display using ``matplotlib.pyplot.axis('off')``
