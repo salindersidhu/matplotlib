@@ -2761,16 +2761,22 @@ class NavigationToolbar2(object):
 
         # Generate a unique timestamp (in ms) for the filename
         mill_sec = int(round(time.time() * 1000))
-        # Save image to current folder
+        # Save image to current folder 
         fname = "./" + str(mill_sec)
         self.canvas.figure.savefig(six.text_type(fname))
 
-        # Invoke OS default print operation on saved file
-        #os.startfile(fname, "print")
-        os.system("lpr -P Brother-HL-2240 " + fname + '.png')
+        # Invoke OS default print operation on saved file based on the os
+        # find which operating of user using platform module 
+        currentOS = platform.system()
+        if (currentOS == 'Windows'):
+            os.startfile(fname + '.png', "print")
+        elif (currentOS == 'Linux'):
+            # find default printer
+            # https://developer.apple.com/legacy/library/documentation/Darwin/Reference/ManPages/man1/lpstat.1.html
+            os.system("lpr -P `lpstat -d | cut -f 2 -d ':'` %s.png" % fname)
 
         # Delete file after print
-        os.remove(fname + '.png')
+        os.remove('%s.png' % fname)
 
     def back(self, *args):
         """move back up the view lim stack"""
