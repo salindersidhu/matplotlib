@@ -7,6 +7,6 @@ location of the cursor. Scrolling the mouse wheel down will zoom out the plot
 at the location of the cursor. This feature works by modifying the axes view
 limits, which is used with the existing zoom-to-rectangle functionality.
 
-The ``Zoom-to-rectangle`` button has been renamed to ``Zoom-to`` because it 
+The ``Zoom-to-rectangle`` button has been renamed to ``Zoom`` because it 
 supports zoom to point using the mouse scroll wheel along with the existing 
 zoom to a rectangular region functionality.
