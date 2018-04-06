@@ -44,6 +44,8 @@ import time
 import warnings
 from weakref import WeakKeyDictionary
 
+import platform
+
 import numpy as np
 
 from matplotlib import (
