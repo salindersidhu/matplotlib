@@ -2731,7 +2731,9 @@ class NavigationToolbar2(object):
         ('Forward', 'Forward to next view', 'forward', 'forward'),
         (None, None, None, None),
         ('Pan', 'Pan axes with left mouse, zoom with right', 'move', 'pan'),
-        ('Zoom', 'Zoom to rectangle', 'zoom_to_rect', 'zoom'),
+        ('Zoom',
+         'Zoom to rectangle with left mouse, zoom to point with scroll wheel',
+         'zoom_to_rect', 'zoom'),
         ('Subplots', 'Configure subplots', 'subplots', 'configure_subplots'),
         (None, None, None, None),
         ('Save', 'Save the figure', 'filesave', 'save_figure'),
@@ -2745,6 +2747,7 @@ class NavigationToolbar2(object):
                               # of the press
         self._idPress = None
         self._idRelease = None
+        self._idScroll = None
         self._active = None
         # This cursor will be set after the initial draw.
         self._lastCursor = cursors.POINTER
@@ -2874,6 +2877,10 @@ class NavigationToolbar2(object):
             self._idRelease = self.canvas.mpl_disconnect(self._idRelease)
             self.mode = ''
 
+        if self._idScroll is not None:
+            self._idScroll = self.canvas.mpl_disconnect(self._idScroll)
+            self.mode = ''
+
         if self._active:
             self._idPress = self.canvas.mpl_connect(
                 'button_press_event', self.press_pan)
@@ -2888,6 +2895,37 @@ class NavigationToolbar2(object):
             a.set_navigate_mode(self._active)
 
         self.set_message(self.mode)
+
+    def scroll_zoom(self, event):
+        """Callback for mouse scroll wheel zoom."""
+
+        if event.inaxes is None:
+            return
+
+        # Set the home button to this view
+        if self._nav_stack() is None:
+            self.push_current()
+
+        # Determines the amount of the plot to zoom in or out per scroll tick
+        zoom_factor = 1.2
+
+        if event.button == 'up':
+            # Scroll wheel up, zoom in
+            scale = zoom_factor
+        elif event.button == 'down':
+            # Scroll wheel down, zoom out
+            scale = 1 / zoom_factor
+        else:
+            scale = 1
+
+        # Change the plot's view box
+        event.inaxes._set_view_from_bbox([event.x, event.y, scale])
+
+        # Re-draw canvas to apply the zoom effect
+        self.canvas.draw_idle()
+
+        # For each scroll tick push current view
+        self.push_current()
 
     def press(self, event):
         """Called whenever a mouse button is pressed."""
@@ -3147,12 +3185,18 @@ class NavigationToolbar2(object):
             self._idRelease = self.canvas.mpl_disconnect(self._idRelease)
             self.mode = ''
 
+        if self._idScroll is not None:
+            self._idScroll = self.canvas.mpl_disconnect(self._idScroll)
+            self.mode = ''
+
         if self._active:
             self._idPress = self.canvas.mpl_connect('button_press_event',
                                                     self.press_zoom)
             self._idRelease = self.canvas.mpl_connect('button_release_event',
                                                       self.release_zoom)
-            self.mode = 'zoom rect'
+            self._idScroll = self.canvas.mpl_connect('scroll_event', 
+                                                     self.scroll_zoom)
+            self.mode = 'zoom scroll/rect'
             self.canvas.widgetlock(self)
         else:
             self.canvas.widgetlock.release(self)
