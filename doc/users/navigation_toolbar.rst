@@ -80,6 +80,7 @@ The ``Save`` button
 
 .. image:: ../../lib/matplotlib/mpl-data/images/fileprint_large.png
 
+
 The ``Print`` button   
     Click this button to be able to print the current figure to a 
     physical printer. 
