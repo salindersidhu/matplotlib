@@ -76,6 +76,12 @@ The ``Save`` button
     ``svg`` and ``pdf``.
 
 
+.. image:: ../../lib/matplotlib/mpl-data/images/paintbrush.png
+
+The ``Draw`` button
+    Click this button to draw on the canvas or graph. You can click for 
+   for a single point on the canvas, or click and drag for continuous drawing.
+
 .. _key-event-handling:
 
 Navigation Keyboard Shortcuts
