@@ -75,6 +75,12 @@ The ``Save`` button
     files with the following extensions: ``png``, ``ps``, ``eps``,
     ``svg`` and ``pdf``.
 
+.. image:: ../../lib/matplotlib/mpl-data/images/fileprint.png
+
+The ``Print`` button   
+    Click this button to be able to print the current figure to a 
+    physical printer. 
+
 
 .. _key-event-handling:
 
