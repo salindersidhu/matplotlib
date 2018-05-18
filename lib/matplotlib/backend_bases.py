@@ -38,6 +38,7 @@ import importlib
 import io
 import os
 import sys
+import six
 import time
 import warnings
 from weakref import WeakKeyDictionary
