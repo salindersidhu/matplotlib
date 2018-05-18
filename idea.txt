@@ -1,0 +1,5 @@
+1. Create  a button on navigation toolbar.
+2. Add Print item under toolitems in backend_bases, under NavigationToolBar2 class.
+3. Add print function into the NavigationToolBar2 class. 
+	- Save image into current directory.
+	- Print to local printer using os module on the saved image. 
